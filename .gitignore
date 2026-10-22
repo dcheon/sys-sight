@@ -1,0 +1,60 @@
+# CMake and build output
+build/
+.cache/
+compile_commands.json
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+Makefile
+build.ninja
+.ninja_deps
+.ninja_log
+
+# IDE and editor metadata
+.idea/
+.vscode/
+*.user
+*.suo
+*.userprefs
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Compiled and temporary files
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.pdb
+*.ilk
+*.swp
+*~
+
+# Test, coverage, profiling, and tracer output
+Testing/
+coverage/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+*.trace
+*.pftrace
+*.log
+sys-sight-*.jsonl
+
+# Local environment and tool state
+.env
+.env.*
+!.env.example
+.claude/
+.codex/
+.copilot/

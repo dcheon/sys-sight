@@ -1,0 +1,23 @@
+name: Linux CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        sanitizer: [none, address, undefined]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DSYS_SIGHT_BUILD_TESTS=ON
+          -DSYS_SIGHT_ENABLE_${{ matrix.sanitizer }}=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
