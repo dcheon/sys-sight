@@ -46,21 +46,23 @@ events.
 
 - Collect single-process system call entry and exit events
 - Use `PTRACE_O_TRACESYSGOOD` for stop classification
-- Add `PTRACE_GET_SYSCALL_INFO` support
-- Decode the Linux x86-64 system call ABI
-- Emit raw system call events as JSON Lines
+- [ ] Add `PTRACE_GET_SYSCALL_INFO` support
+- [x] Decode the initial Linux x86-64 system call set
+- [x] Emit decoded system call events as JSON Lines
 
 ### Bootstrap and state reduction
 
-- Seed initial state from `/proc/<pid>/maps` and `/proc/<pid>/fd`
-- Track file descriptor lifecycle events:
+- [ ] Seed the complete initial state from `/proc/<pid>/maps` and `/proc/<pid>/fd`
+- [x] Seed standard descriptors for the initial single-process tracer
+- [ ] Track the complete file descriptor lifecycle:
   `open`, `openat`, `openat2`, `close`, `dup*`, `fcntl` duplication,
   `pipe*`, `socket*`, `accept*`, `epoll_create*`, `eventfd*`,
   `memfd_create`, `close_range`, and `SCM_RIGHTS`
-- Track virtual memory lifecycle events:
+- [ ] Track the complete virtual memory lifecycle:
   `mmap`, `munmap`, `mremap`, `mprotect`, and `brk`
-- Support region splitting and normalization after partial unmaps
-- Reset the address-space model after `execve`
+- [x] Support region splitting and normalization after partial unmaps
+- [ ] Reset the address-space model after `execve`
+- [x] Connect successful decoded syscall exits to the process state reducer
 
 ### Verification and export
 

@@ -1,6 +1,8 @@
 #include "tracer/ptrace_tracer.h"
 
 #include "output/jsonl_writer.h"
+#include "state/process_state.h"
+#include "syscall/syscall_decoder_x86_64.h"
 
 #include <cerrno>
 #include <chrono>
@@ -26,7 +28,7 @@ std::uint64_t now_ns() {
 
 }  // namespace
 
-PtraceTracer::PtraceTracer(std::string executable) : executable_(std::move(executable)) {}
+PtraceTracer::PtraceTracer(std::vector<std::string> command) : command_(std::move(command)) {}
 
 int PtraceTracer::run(std::ostream& output) {
     const pid_t child = fork();
@@ -37,7 +39,13 @@ int PtraceTracer::run(std::ostream& output) {
         if (ptrace(PTRACE_TRACEME, 0, nullptr, nullptr) == -1) {
             _exit(127);
         }
-        execl(executable_.c_str(), executable_.c_str(), static_cast<char*>(nullptr));
+        std::vector<char*> arguments;
+        arguments.reserve(command_.size() + 1);
+        for (const auto& argument : command_) {
+            arguments.push_back(const_cast<char*>(argument.c_str()));
+        }
+        arguments.push_back(nullptr);
+        execvp(arguments.front(), arguments.data());
         _exit(127);
     }
 
@@ -54,6 +62,8 @@ int PtraceTracer::run(std::ostream& output) {
 
     bool in_syscall = false;
     std::int64_t sequence = 0;
+    ProcessState state;
+    state.seed_standard_descriptors();
     while (true) {
         if (ptrace(PTRACE_SYSCALL, child, nullptr, nullptr) == -1) {
             return errno;
@@ -78,9 +88,15 @@ int PtraceTracer::run(std::ostream& output) {
             child,
             static_cast<std::int64_t>(registers.orig_rax),
             !in_syscall,
+            {registers.rdi, registers.rsi, registers.rdx, registers.r10, registers.r8,
+             registers.r9},
             static_cast<std::int64_t>(registers.rax),
             now_ns(),
+            std::string(syscall_name_x86_64(static_cast<std::int64_t>(registers.orig_rax))),
         };
+        if (const auto state_event = state_event_from_syscall(event)) {
+            state.apply(*state_event);
+        }
         write_jsonl(output, event);
         in_syscall = !in_syscall;
     }

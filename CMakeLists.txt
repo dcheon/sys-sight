@@ -22,6 +22,7 @@ add_library(sys_sight_core
     src/state/fd_table.cpp
     src/state/memory_map.cpp
     src/state/process_state.cpp
+    src/syscall/syscall_decoder_x86_64.cpp
     src/tracer/ptrace_tracer.cpp
     src/output/jsonl_writer.cpp
 )
@@ -47,6 +48,7 @@ if(SYS_SIGHT_BUILD_TESTS)
         tests/unit/fd_table_test.cpp
         tests/unit/memory_map_test.cpp
         tests/unit/process_state_test.cpp
+        tests/unit/syscall_decoder_test.cpp
     )
     target_link_libraries(sys_sight_tests PRIVATE sys_sight_core GTest::gtest_main)
     target_compile_options(sys_sight_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

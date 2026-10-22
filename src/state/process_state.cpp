@@ -5,6 +5,12 @@
 
 namespace sys_sight {
 
+void ProcessState::seed_standard_descriptors() {
+    file_descriptors_.open(0, "<stdin>");
+    file_descriptors_.open(1, "<stdout>");
+    file_descriptors_.open(2, "<stderr>");
+}
+
 void ProcessState::apply(const StateEvent& event) {
     std::visit(
         [this](const auto& value) {

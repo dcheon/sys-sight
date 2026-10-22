@@ -7,6 +7,7 @@ namespace sys_sight {
 
 class ProcessState {
 public:
+    void seed_standard_descriptors();
     void apply(const StateEvent& event);
 
     [[nodiscard]] const FileDescriptorTable& file_descriptors() const noexcept;

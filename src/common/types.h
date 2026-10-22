@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <optional>
 #include <string>
 #include <variant>
@@ -9,6 +10,7 @@ namespace sys_sight {
 
 using Address = std::uint64_t;
 using FileDescriptor = int;
+using SyscallArguments = std::array<std::uint64_t, 6>;
 
 struct OpenEvent {
     FileDescriptor fd;
