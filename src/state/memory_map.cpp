@@ -6,6 +6,11 @@
 
 namespace sys_sight {
 
+void VirtualMemoryMap::clear() noexcept {
+    regions_.clear();
+    program_break_ = 0;
+}
+
 void VirtualMemoryMap::map(Address start, std::uint64_t length, int protection, std::string name) {
     if (length == 0 || start > UINT64_MAX - length) {
         throw std::invalid_argument("invalid memory mapping range");

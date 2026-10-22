@@ -17,6 +17,7 @@ struct MemoryRegion {
 
 class VirtualMemoryMap {
 public:
+    void clear() noexcept;
     void map(Address start, std::uint64_t length, int protection, std::string name = {});
     void unmap(Address start, std::uint64_t length);
     void set_break(Address current_break);

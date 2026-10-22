@@ -2,12 +2,14 @@
 
 #include "output/jsonl_writer.h"
 #include "state/process_state.h"
+#include "state/proc_bootstrap.h"
 #include "syscall/syscall_decoder_x86_64.h"
 
 #include <cerrno>
 #include <chrono>
 #include <csignal>
 #include <cstring>
+#include <exception>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/user.h>
@@ -63,7 +65,14 @@ int PtraceTracer::run(std::ostream& output) {
     bool in_syscall = false;
     std::int64_t sequence = 0;
     ProcessState state;
-    state.seed_standard_descriptors();
+    try {
+        const auto bootstrap = ProcBootstrap::seed(child, state);
+        output << "{\"bootstrap\":{\"file_descriptors\":" << bootstrap.file_descriptors
+               << ",\"memory_regions\":" << bootstrap.memory_regions << "}}\n";
+    } catch (const std::exception& error) {
+        output << "{\"error\":\"bootstrap_failed\",\"message\":\"" << error.what() << "\"}\n";
+        return 1;
+    }
     while (true) {
         if (ptrace(PTRACE_SYSCALL, child, nullptr, nullptr) == -1) {
             return errno;

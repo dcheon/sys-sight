@@ -5,6 +5,10 @@
 
 namespace sys_sight {
 
+void FileDescriptorTable::clear() noexcept {
+    entries_.clear();
+}
+
 void FileDescriptorTable::open(FileDescriptor fd, std::string path) {
     if (fd < 0) {
         throw std::invalid_argument("file descriptor must be non-negative");

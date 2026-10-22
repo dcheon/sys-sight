@@ -5,6 +5,11 @@
 
 namespace sys_sight {
 
+void ProcessState::clear() noexcept {
+    file_descriptors_.clear();
+    memory_map_.clear();
+}
+
 void ProcessState::seed_standard_descriptors() {
     file_descriptors_.open(0, "<stdin>");
     file_descriptors_.open(1, "<stdout>");

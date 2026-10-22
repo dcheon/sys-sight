@@ -10,6 +10,7 @@ namespace sys_sight {
 
 class FileDescriptorTable {
 public:
+    void clear() noexcept;
     void open(FileDescriptor fd, std::string path);
     void close(FileDescriptor fd);
     void duplicate(FileDescriptor source, FileDescriptor target);

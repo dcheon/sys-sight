@@ -7,7 +7,7 @@ The project uses `ptrace` to collect system call entry/exit events and pure
 state reducers to model file descriptor and virtual memory mapping lifecycles.
 The current implementation is an early Phase 1 vertical slice with a
 single-process tracer, JSONL output, x86-64 syscall decoding, successful
-FD/VMA event reduction, and unit-tested state models.
+FD/VMA event reduction, `/proc` bootstrap, and unit-tested state models.
 
 ## Quick start
 
