@@ -9,15 +9,21 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        sanitizer: [none, address, undefined]
+        include:
+          - name: normal
+            sanitizer_options: ""
+          - name: address-sanitizer
+            sanitizer_options: "-DSYS_SIGHT_ENABLE_address=ON"
+          - name: undefined-behavior-sanitizer
+            sanitizer_options: "-DSYS_SIGHT_ENABLE_undefined=ON"
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
+      - name: Configure (${{ matrix.name }})
         run: >
           cmake -S . -B build
           -DSYS_SIGHT_BUILD_TESTS=ON
-          -DSYS_SIGHT_ENABLE_${{ matrix.sanitizer }}=ON
-      - name: Build
+          ${{ matrix.sanitizer_options }}
+      - name: Build (${{ matrix.name }})
         run: cmake --build build --parallel
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+      - name: Run unit tests (${{ matrix.name }})
+        run: ctest --test-dir build --output-on-failure --no-tests=error
