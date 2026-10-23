@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(sys_sight VERSION 0.1.0 LANGUAGES CXX)
+project(sys_sight VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,11 +23,13 @@ add_library(sys_sight_core
     src/state/memory_map.cpp
     src/state/process_state.cpp
     src/state/proc_bootstrap.cpp
+    src/state/proc_maps.cpp
+    src/state/region_classifier.cpp
     src/syscall/syscall_decoder_x86_64.cpp
     src/tracer/ptrace_tracer.cpp
     src/output/jsonl_writer.cpp
 )
-target_include_directories(sys_sight_core PUBLIC src)
+target_include_directories(sys_sight_core PUBLIC src include)
 target_compile_options(sys_sight_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(sys-sight src/cli/main.cpp)
@@ -50,10 +52,58 @@ if(SYS_SIGHT_BUILD_TESTS)
         tests/unit/memory_map_test.cpp
         tests/unit/process_state_test.cpp
         tests/unit/proc_bootstrap_test.cpp
+        tests/unit/region_classifier_test.cpp
         tests/unit/syscall_decoder_test.cpp
     )
     target_link_libraries(sys_sight_tests PRIVATE sys_sight_core GTest::gtest_main)
     target_compile_options(sys_sight_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     include(GoogleTest)
     gtest_discover_tests(sys_sight_tests)
+
+    # Example target program, built with the flags sys-sight requires.
+    add_executable(single_thread_single_function_test
+        examples/single_thread_single_function_test/main.c)
+    target_include_directories(single_thread_single_function_test PRIVATE include)
+    set_target_properties(single_thread_single_function_test PROPERTIES
+        C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(single_thread_single_function_test PRIVATE
+        -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(single_thread_single_function_test PRIVATE -no-pie)
+
+    set(EXAMPLE_CHECK ${CMAKE_SOURCE_DIR}/tests/example/check_output.cmake)
+    add_test(NAME example_runs
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:single_thread_single_function_test>
+            -P ${EXAMPLE_CHECK})
+    set(EXAMPLE_HEAP_KIND heap)
+    if(SYS_SIGHT_ENABLE_address)
+        set(EXAMPLE_HEAP_KIND mmap)
+    endif()
+    add_test(NAME example_runs_under_tracer
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:single_thread_single_function_test>
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DHEAP_KIND=${EXAMPLE_HEAP_KIND}
+            -P ${EXAMPLE_CHECK})
+    # The tracer must report a failing tracee instead of exiting 0.
+    add_test(NAME tracer_reports_nonzero_exit COMMAND sys-sight /bin/false)
+    set_tests_properties(tracer_reports_nonzero_exit PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"exit\":\\{\"status\":1\\}")
+    add_test(NAME tracer_reports_signal
+        COMMAND sys-sight /bin/sh -c "kill -SEGV $$")
+    set_tests_properties(tracer_reports_signal PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"exit\":\\{\"signal\":11\\}")
+    add_test(NAME tracer_no_snapshot_without_marker COMMAND sys-sight /bin/true)
+    set_tests_properties(tracer_no_snapshot_without_marker PROPERTIES
+        FAIL_REGULAR_EXPRESSION "\"snapshot\"")
+    add_test(NAME tracer_reports_exec_failure
+        COMMAND sys-sight /nonexistent_prog)
+    set_tests_properties(tracer_reports_exec_failure PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"exec_failed\",\"errno\":2")
+    add_test(NAME tracer_exec_failure_exit_code
+        COMMAND sh -c "$<TARGET_FILE:sys-sight> /nonexistent_prog 2>/dev/null; test $? -eq 127")
+    # LeakSanitizer aborts the tracee under ptrace, and ASan's fake stack
+    # moves locals off the real stack, which the frame check relies on.
+    set_tests_properties(example_runs_under_tracer PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
 endif()

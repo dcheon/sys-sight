@@ -3,13 +3,20 @@
 #include "output/jsonl_writer.h"
 #include "state/process_state.h"
 #include "state/proc_bootstrap.h"
+#include "state/proc_maps.h"
+#include "state/region_classifier.h"
 #include "syscall/syscall_decoder_x86_64.h"
+#include "sys-sight/marker.h"
 
 #include <cerrno>
 #include <chrono>
 #include <csignal>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <exception>
+#include <fcntl.h>
+#include <iostream>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/user.h>
@@ -33,25 +40,49 @@ std::uint64_t now_ns() {
 PtraceTracer::PtraceTracer(std::vector<std::string> command) : command_(std::move(command)) {}
 
 int PtraceTracer::run(std::ostream& output) {
+    // The pipe closes on a successful exec; on failure the child sends errno.
+    int exec_pipe[2];
+    if (pipe2(exec_pipe, O_CLOEXEC) == -1) {
+        return errno;
+    }
     const pid_t child = fork();
     if (child == -1) {
         return errno;
     }
     if (child == 0) {
-        if (ptrace(PTRACE_TRACEME, 0, nullptr, nullptr) == -1) {
-            _exit(127);
+        if (ptrace(PTRACE_TRACEME, 0, nullptr, nullptr) != -1) {
+            std::vector<char*> arguments;
+            arguments.reserve(command_.size() + 1);
+            for (const auto& argument : command_) {
+                arguments.push_back(const_cast<char*>(argument.c_str()));
+            }
+            arguments.push_back(nullptr);
+            execvp(arguments.front(), arguments.data());
         }
-        std::vector<char*> arguments;
-        arguments.reserve(command_.size() + 1);
-        for (const auto& argument : command_) {
-            arguments.push_back(const_cast<char*>(argument.c_str()));
-        }
-        arguments.push_back(nullptr);
-        execvp(arguments.front(), arguments.data());
+        const int failure = errno;
+        const ssize_t sent = write(exec_pipe[1], &failure, sizeof failure);
+        (void)sent;
         _exit(127);
     }
 
+    close(exec_pipe[1]);
+    int exec_errno = 0;
+    ssize_t received = 0;
+    do {
+        received = read(exec_pipe[0], &exec_errno, sizeof exec_errno);
+    } while (received == -1 && errno == EINTR);
+    close(exec_pipe[0]);
+
     int status = 0;
+    if (received == static_cast<ssize_t>(sizeof exec_errno)) {
+        waitpid(child, &status, 0);
+        std::cerr << "sys-sight: cannot run '" << command_.front()
+                  << "': " << std::strerror(exec_errno) << "\n";
+        output << "{\"error\":\"exec_failed\",\"errno\":" << exec_errno << ",\"message\":\""
+               << std::strerror(exec_errno) << "\"}\n";
+        // Same codes as a shell: 127 for not found, 126 otherwise.
+        return exec_errno == ENOENT ? 127 : 126;
+    }
     if (waitpid(child, &status, 0) == -1) {
         return errno;
     }
@@ -73,17 +104,29 @@ int PtraceTracer::run(std::ostream& output) {
         output << "{\"error\":\"bootstrap_failed\",\"message\":\"" << error.what() << "\"}\n";
         return 1;
     }
+    int pending_signal = 0;
     while (true) {
-        if (ptrace(PTRACE_SYSCALL, child, nullptr, nullptr) == -1) {
+        // Passing the signal on keeps a crashing tracee from looking healthy.
+        if (ptrace(PTRACE_SYSCALL, child, nullptr,
+                   reinterpret_cast<void*>(static_cast<std::intptr_t>(pending_signal))) == -1) {
             return errno;
         }
+        pending_signal = 0;
         if (waitpid(child, &status, 0) == -1) {
             return errno;
         }
-        if (WIFEXITED(status) || WIFSIGNALED(status)) {
-            return 0;
+        if (WIFEXITED(status)) {
+            output << "{\"exit\":{\"status\":" << WEXITSTATUS(status) << "}}\n";
+            return WEXITSTATUS(status);
+        }
+        if (WIFSIGNALED(status)) {
+            output << "{\"exit\":{\"signal\":" << WTERMSIG(status) << "}}\n";
+            return 128 + WTERMSIG(status);
         }
         if (!WIFSTOPPED(status) || WSTOPSIG(status) != (SIGTRAP | 0x80)) {
+            if (WIFSTOPPED(status) && WSTOPSIG(status) != SIGTRAP) {
+                pending_signal = WSTOPSIG(status);
+            }
             continue;
         }
 
@@ -107,6 +150,24 @@ int PtraceTracer::run(std::ostream& output) {
             state.apply(*state_event);
         }
         write_jsonl(output, event);
+        if (event.entry && event.number == SYSSIGHT_MARKER_SYSCALL) {
+            // The tracee is already stopped at syscall entry; resuming it
+            // returns -ENOSYS to the program.
+            std::vector<ClassifiedRegion> regions;
+            try {
+                regions = classify_regions(read_proc_maps(child), read_proc_exe(child));
+            } catch (const std::exception& error) {
+                output << "{\"error\":\"maps_unreadable\",\"message\":";
+                write_json_string(output, error.what());
+                output << "}\n";
+            }
+            output << "{\"snapshot\":{\"trigger\":\"marker\",\"sequence\":" << event.sequence
+                   << ",\"registers\":{\"rip\":\"" << hex_address(registers.rip) << "\",\"rsp\":\""
+                   << hex_address(registers.rsp) << "\",\"rbp\":\"" << hex_address(registers.rbp)
+                   << "\"},\"regions\":";
+            write_regions_json(output, regions);
+            output << "}}\n" << std::flush;
+        }
         in_syscall = !in_syscall;
     }
 }
