@@ -1,5 +1,6 @@
 #include "tracer/ptrace_tracer.h"
 
+#include "elf/elf_reader.h"
 #include "output/jsonl_writer.h"
 #include "state/process_state.h"
 #include "state/proc_bootstrap.h"
@@ -7,6 +8,7 @@
 #include "state/region_classifier.h"
 #include "syscall/syscall_decoder_x86_64.h"
 #include "sys-sight/marker.h"
+#include "tracer/tracee_memory.h"
 
 #include <cerrno>
 #include <chrono>
@@ -33,6 +35,51 @@ std::uint64_t now_ns() {
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch())
             .count());
+}
+
+void write_error(std::ostream& output, const char* code, const std::exception& error) {
+    output << "{\"error\":\"" << code << "\",\"message\":";
+    write_json_string(output, error.what());
+    output << "}\n";
+}
+
+void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
+                    const user_regs_struct& registers) {
+    const auto executable_path = read_proc_exe(pid);
+
+    std::vector<ClassifiedRegion> regions;
+    try {
+        regions = classify_regions(read_proc_maps(pid), executable_path);
+    } catch (const std::exception& error) {
+        write_error(output, "maps_unreadable", error);
+    }
+
+    ElfInfo elf;
+    try {
+        elf = read_elf(executable_path);
+        if (elf.pie) {
+            // PIE addresses in the file are offsets, not runtime addresses.
+            output << "{\"diagnostic\":{\"level\":\"warning\",\"code\":\"pie\","
+                      "\"message\":\"PIE executable: sections and symbols omitted; "
+                      "build with -no-pie\"}}\n";
+            elf.sections.clear();
+            elf.symbols.clear();
+        }
+        for (auto& symbol : elf.symbols) {
+            symbol.value = read_tracee_integer(pid, symbol.address, symbol.size);
+        }
+    } catch (const std::exception& error) {
+        write_error(output, "elf_unreadable", error);
+    }
+
+    output << "{\"snapshot\":{\"trigger\":\"marker\",\"sequence\":" << sequence
+           << ",\"registers\":{\"rip\":\"" << hex_address(registers.rip) << "\",\"rsp\":\""
+           << hex_address(registers.rsp) << "\",\"rbp\":\"" << hex_address(registers.rbp)
+           << "\"},\"regions\":";
+    write_regions_json(output, regions);
+    output << ",\"executable\":";
+    write_executable_json(output, executable_path, elf);
+    output << "}}\n" << std::flush;
 }
 
 }  // namespace
@@ -153,20 +200,7 @@ int PtraceTracer::run(std::ostream& output) {
         if (event.entry && event.number == SYSSIGHT_MARKER_SYSCALL) {
             // The tracee is already stopped at syscall entry; resuming it
             // returns -ENOSYS to the program.
-            std::vector<ClassifiedRegion> regions;
-            try {
-                regions = classify_regions(read_proc_maps(child), read_proc_exe(child));
-            } catch (const std::exception& error) {
-                output << "{\"error\":\"maps_unreadable\",\"message\":";
-                write_json_string(output, error.what());
-                output << "}\n";
-            }
-            output << "{\"snapshot\":{\"trigger\":\"marker\",\"sequence\":" << event.sequence
-                   << ",\"registers\":{\"rip\":\"" << hex_address(registers.rip) << "\",\"rsp\":\""
-                   << hex_address(registers.rsp) << "\",\"rbp\":\"" << hex_address(registers.rbp)
-                   << "\"},\"regions\":";
-            write_regions_json(output, regions);
-            output << "}}\n" << std::flush;
+            write_snapshot(output, child, event.sequence, registers);
         }
         in_syscall = !in_syscall;
     }

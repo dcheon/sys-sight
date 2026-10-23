@@ -19,6 +19,8 @@ if(SYS_SIGHT_ENABLE_undefined)
 endif()
 
 add_library(sys_sight_core
+    src/elf/elf_reader.cpp
+    src/tracer/tracee_memory.cpp
     src/state/fd_table.cpp
     src/state/memory_map.cpp
     src/state/process_state.cpp
@@ -54,8 +56,13 @@ if(SYS_SIGHT_BUILD_TESTS)
         tests/unit/proc_bootstrap_test.cpp
         tests/unit/region_classifier_test.cpp
         tests/unit/syscall_decoder_test.cpp
+        tests/unit/elf_reader_test.cpp
+        tests/unit/tracee_memory_test.cpp
     )
     target_link_libraries(sys_sight_tests PRIVATE sys_sight_core GTest::gtest_main)
+    target_compile_definitions(sys_sight_tests PRIVATE
+        EXAMPLE_BINARY="$<TARGET_FILE:single_thread_single_function_test>")
+    add_dependencies(sys_sight_tests single_thread_single_function_test)
     target_compile_options(sys_sight_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     include(GoogleTest)
     gtest_discover_tests(sys_sight_tests)
@@ -69,6 +76,18 @@ if(SYS_SIGHT_BUILD_TESTS)
     target_compile_options(single_thread_single_function_test PRIVATE
         -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
     target_link_options(single_thread_single_function_test PRIVATE -no-pie)
+
+    # The same program built as PIE: sys-sight must warn, not report wrong addresses.
+    add_executable(example_pie examples/single_thread_single_function_test/main.c)
+    target_include_directories(example_pie PRIVATE include)
+    set_target_properties(example_pie PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(example_pie PRIVATE
+        -O0 -g -fPIE -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(example_pie PRIVATE -pie)
+    add_test(NAME tracer_warns_on_pie COMMAND sys-sight $<TARGET_FILE:example_pie>)
+    set_tests_properties(tracer_warns_on_pie PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"code\":\"pie\""
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
     set(EXAMPLE_CHECK ${CMAKE_SOURCE_DIR}/tests/example/check_output.cmake)
     add_test(NAME example_runs

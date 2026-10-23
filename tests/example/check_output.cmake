@@ -107,4 +107,47 @@ if(TRACER)
                 "${variable} at ${variable_address}: expected region '${expected_kind}', got '${actual_kind}'\n${snapshot_json}")
         endif()
     endforeach()
+
+    # Globals read from the ELF symbol table must match what the program printed.
+    string(JSON symbol_count LENGTH "${snapshot_json}" snapshot executable symbols)
+    if(symbol_count EQUAL 0)
+        message(FATAL_ERROR "snapshot has no symbols\n${snapshot_json}")
+    endif()
+
+    function(symbol_index name out_var)
+        math(EXPR last "${symbol_count} - 1")
+        foreach(index RANGE ${last})
+            string(JSON candidate GET "${snapshot_json}" snapshot executable symbols ${index} name)
+            if(candidate STREQUAL name)
+                set(${out_var} "${index}" PARENT_SCOPE)
+                return()
+            endif()
+        endforeach()
+        set(${out_var} "" PARENT_SCOPE)
+    endfunction()
+
+    foreach(spec "g_rodata:.rodata" "g_data:.data" "g_bss:.bss")
+        string(REGEX MATCH "^(.*):(.*)$" _ "${spec}")
+        set(variable "${CMAKE_MATCH_1}")
+        set(expected_section "${CMAKE_MATCH_2}")
+        symbol_index("${variable}" index)
+        if(index STREQUAL "")
+            message(FATAL_ERROR "symbol ${variable} not in snapshot\n${snapshot_json}")
+        endif()
+        string(JSON symbol_address GET "${snapshot_json}" snapshot executable symbols ${index} address)
+        string(JSON symbol_section GET "${snapshot_json}" snapshot executable symbols ${index} section)
+        string(JSON symbol_value GET "${snapshot_json}" snapshot executable symbols ${index} value)
+        math(EXPR symbol_value "${symbol_value}" OUTPUT_FORMAT DECIMAL)
+
+        string(REGEX MATCH "\n${variable} +([0-9]+) +[^ ]+ +(0x[0-9a-f]+)" _ "${out}")
+        set(table_value "${CMAKE_MATCH_1}")
+        set(table_address "${CMAKE_MATCH_2}")
+        if(NOT symbol_section STREQUAL expected_section
+           OR NOT symbol_address STREQUAL table_address
+           OR NOT symbol_value EQUAL table_value)
+            message(FATAL_ERROR
+                "${variable}: symbol says ${symbol_section} ${symbol_address} = ${symbol_value}, "
+                "program printed ${table_address} = ${table_value} (expected section ${expected_section})")
+        endif()
+    endforeach()
 endif()

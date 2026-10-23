@@ -58,4 +58,31 @@ void write_regions_json(std::ostream& output, const std::vector<ClassifiedRegion
     output << ']';
 }
 
+void write_executable_json(std::ostream& output, const std::string& path, const ElfInfo& elf) {
+    output << "{\"path\":";
+    write_json_string(output, path);
+    output << ",\"pie\":" << (elf.pie ? "true" : "false") << ",\"sections\":[";
+    for (std::size_t index = 0; index < elf.sections.size(); ++index) {
+        const auto& section = elf.sections[index];
+        output << (index == 0 ? "" : ",") << "{\"name\":";
+        write_json_string(output, section.name);
+        output << ",\"start\":\"" << hex_address(section.start) << "\",\"end\":\""
+               << hex_address(section.end) << "\"}";
+    }
+    output << "],\"symbols\":[";
+    for (std::size_t index = 0; index < elf.symbols.size(); ++index) {
+        const auto& symbol = elf.symbols[index];
+        output << (index == 0 ? "" : ",") << "{\"name\":";
+        write_json_string(output, symbol.name);
+        output << ",\"address\":\"" << hex_address(symbol.address) << "\",\"size\":" << symbol.size
+               << ",\"section\":";
+        write_json_string(output, symbol.section);
+        if (symbol.value) {
+            output << ",\"value\":\"" << hex_address(*symbol.value) << '"';
+        }
+        output << '}';
+    }
+    output << "]}";
+}
+
 }  // namespace sys_sight
