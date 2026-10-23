@@ -6,6 +6,12 @@
 #include <sys/syscall.h>
 
 namespace sys_sight {
+namespace {
+
+constexpr std::uint64_t kProtectionMask = 7;  // PROT_READ | PROT_WRITE | PROT_EXEC
+constexpr std::uint64_t kMremapDontUnmap = 4;
+
+}  // namespace
 
 std::string_view syscall_name_x86_64(std::int64_t number) noexcept {
     switch (number) {
@@ -47,11 +53,18 @@ std::optional<StateEvent> state_event_from_syscall(const SyscallEvent& event) {
                             static_cast<FileDescriptor>(event.return_value)};
         case SYS_mmap:
             return MmapEvent{static_cast<Address>(event.return_value), event.arguments[1],
-                             static_cast<int>(event.arguments[2]), "<mmap>"};
+                             static_cast<int>(event.arguments[2] & kProtectionMask), "<mmap>"};
         case SYS_munmap:
             return MunmapEvent{event.arguments[0], event.arguments[1]};
+        case SYS_mprotect:
+            return MprotectEvent{event.arguments[0], event.arguments[1],
+                                 static_cast<int>(event.arguments[2] & kProtectionMask)};
+        case SYS_mremap:
+            return MremapEvent{event.arguments[0], event.arguments[1],
+                               static_cast<Address>(event.return_value), event.arguments[2],
+                               (event.arguments[3] & kMremapDontUnmap) != 0};
         case SYS_brk:
-            return BrkEvent{0, static_cast<Address>(event.return_value)};
+            return BrkEvent{event.arguments[0], static_cast<Address>(event.return_value)};
         default:
             return std::nullopt;
     }

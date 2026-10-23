@@ -52,8 +52,8 @@ events.
 
 ### Bootstrap and state reduction
 
-- [ ] Seed the complete initial state from `/proc/<pid>/maps` and `/proc/<pid>/fd`
-- [x] Seed standard descriptors for the initial single-process tracer
+- [x] Seed the initial state from `/proc/<pid>/maps` and `/proc/<pid>/fd`
+- [x] Seed standard descriptors as part of the initial single-process state
 - [ ] Track the complete file descriptor lifecycle:
   `open`, `openat`, `openat2`, `close`, `dup*`, `fcntl` duplication,
   `pipe*`, `socket*`, `accept*`, `epoll_create*`, `eventfd*`,

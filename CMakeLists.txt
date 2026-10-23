@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(sys_sight VERSION 0.1.0 LANGUAGES CXX)
+project(sys_sight VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,17 +19,32 @@ if(SYS_SIGHT_ENABLE_undefined)
 endif()
 
 add_library(sys_sight_core
+    src/elf/elf_reader.cpp
+    src/tracer/tracee_memory.cpp
     src/state/fd_table.cpp
     src/state/memory_map.cpp
     src/state/process_state.cpp
+    src/state/proc_bootstrap.cpp
+    src/state/proc_maps.cpp
+    src/state/memory_oracle.cpp
+    src/state/region_classifier.cpp
+    src/state/stack_walker.cpp
     src/syscall/syscall_decoder_x86_64.cpp
     src/tracer/ptrace_tracer.cpp
     src/output/jsonl_writer.cpp
 )
-target_include_directories(sys_sight_core PUBLIC src)
+target_include_directories(sys_sight_core PUBLIC src include)
 target_compile_options(sys_sight_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(sys-sight src/cli/main.cpp)
+# The marker header is embedded so `sys-sight run` needs no installed files.
+file(READ include/sys-sight/marker.h SYSSIGHT_MARKER_HEADER)
+configure_file(src/cli/embedded_marker.cpp.in ${CMAKE_BINARY_DIR}/embedded_marker.cpp @ONLY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/sys-sight/marker.h)
+
+add_executable(sys-sight
+    src/cli/main.cpp
+    src/cli/run_source.cpp
+    ${CMAKE_BINARY_DIR}/embedded_marker.cpp)
 target_link_libraries(sys-sight PRIVATE sys_sight_core)
 target_compile_options(sys-sight PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
@@ -48,10 +63,164 @@ if(SYS_SIGHT_BUILD_TESTS)
         tests/unit/fd_table_test.cpp
         tests/unit/memory_map_test.cpp
         tests/unit/process_state_test.cpp
+        tests/unit/proc_bootstrap_test.cpp
+        tests/unit/region_classifier_test.cpp
         tests/unit/syscall_decoder_test.cpp
+        tests/unit/elf_reader_test.cpp
+        tests/unit/memory_oracle_test.cpp
+        tests/unit/stack_walker_test.cpp
+        tests/unit/tracee_memory_test.cpp
     )
     target_link_libraries(sys_sight_tests PRIVATE sys_sight_core GTest::gtest_main)
+    target_compile_definitions(sys_sight_tests PRIVATE
+        EXAMPLE_BINARY="$<TARGET_FILE:single_thread_single_function_test>")
+    add_dependencies(sys_sight_tests single_thread_single_function_test)
     target_compile_options(sys_sight_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     include(GoogleTest)
     gtest_discover_tests(sys_sight_tests)
+
+    # Example target program, built with the flags sys-sight requires.
+    add_executable(single_thread_single_function_test
+        examples/single_thread_single_function_test/main.c)
+    target_include_directories(single_thread_single_function_test PRIVATE include)
+    set_target_properties(single_thread_single_function_test PROPERTIES
+        C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(single_thread_single_function_test PRIVATE
+        -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(single_thread_single_function_test PRIVATE -no-pie)
+
+    # Viewer logic tests; skipped where Node.js is not installed.
+    find_program(NODE_EXECUTABLE node)
+    if(NODE_EXECUTABLE)
+        add_test(NAME viewer_model
+            COMMAND ${NODE_EXECUTABLE} --test ${CMAKE_SOURCE_DIR}/viewer/model.test.js)
+    endif()
+
+    # Three nested calls, for checking stack frames.
+    add_executable(nested_calls examples/nested_calls/main.c)
+    target_include_directories(nested_calls PRIVATE include)
+    set_target_properties(nested_calls PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(nested_calls PRIVATE
+        -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(nested_calls PRIVATE -no-pie)
+    add_test(NAME nested_calls_frames
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:nested_calls>
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
+    set_tests_properties(nested_calls_frames PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    # `sys-sight run`: compile with the required flags, trace, clean up.
+    add_test(NAME run_source_frames
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=${CMAKE_SOURCE_DIR}/examples/nested_calls/main.c
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DTRACER_ARGS=run
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
+    set_tests_properties(run_source_frames PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    # The oracle: the memory map rebuilt from system calls must equal /proc.
+    foreach(workload nested_calls memory_ops single_thread_single_function_test)
+        add_test(NAME oracle_${workload}
+            COMMAND ${CMAKE_COMMAND}
+                -DEXE=${CMAKE_SOURCE_DIR}/examples/${workload}/main.c
+                -DTRACER=$<TARGET_FILE:sys-sight>
+                -DTRACER_ARGS=run
+                -P ${CMAKE_SOURCE_DIR}/tests/example/check_oracle.cmake)
+    endforeach()
+
+    add_test(NAME oracle_stack_growth
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=${CMAKE_SOURCE_DIR}/examples/stack_growth/main.c
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DTRACER_ARGS=run
+            -DEXPECT_STACK_GROWTH=ON
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_oracle.cmake)
+
+    add_test(NAME run_reports_compile_error
+        COMMAND sys-sight run ${CMAKE_SOURCE_DIR}/tests/example/broken.c)
+    set_tests_properties(run_reports_compile_error PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"compile_failed\"")
+    add_test(NAME run_compile_error_exit_code
+        COMMAND sh -c "$<TARGET_FILE:sys-sight> run ${CMAKE_SOURCE_DIR}/tests/example/broken.c >/dev/null 2>&1; test $? -eq 1")
+
+    add_test(NAME run_reports_missing_source COMMAND sys-sight run /nonexistent/missing.c)
+    set_tests_properties(run_reports_missing_source PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"source_unreadable\"")
+    add_test(NAME run_reports_unsupported_source
+        COMMAND sys-sight run ${CMAKE_SOURCE_DIR}/README.md)
+    set_tests_properties(run_reports_unsupported_source PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"unsupported_source\"")
+
+    # Success and failure must both remove the build directory.
+    set(RUN_TMP ${CMAKE_BINARY_DIR}/run_tmp)
+    add_test(NAME run_removes_build_files
+        COMMAND sh -c "rm -rf ${RUN_TMP} && mkdir -p ${RUN_TMP} && \
+TMPDIR=${RUN_TMP} $<TARGET_FILE:sys-sight> run ${CMAKE_SOURCE_DIR}/examples/nested_calls/main.c >/dev/null 2>&1; \
+TMPDIR=${RUN_TMP} $<TARGET_FILE:sys-sight> run ${CMAKE_SOURCE_DIR}/tests/example/broken.c >/dev/null 2>&1; \
+test -z \"$(ls -A ${RUN_TMP})\"")
+
+    # Optimized without frame pointers: the walk must warn, not invent frames.
+    add_executable(nested_calls_optimized examples/nested_calls/main.c)
+    target_include_directories(nested_calls_optimized PRIVATE include)
+    set_target_properties(nested_calls_optimized PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(nested_calls_optimized PRIVATE
+        -O2 -fno-pie -fomit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(nested_calls_optimized PRIVATE -no-pie)
+    add_test(NAME tracer_warns_without_frame_pointer
+        COMMAND sys-sight $<TARGET_FILE:nested_calls_optimized>)
+    set_tests_properties(tracer_warns_without_frame_pointer PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"code\":\"no_frame_pointer\""
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+    # The same program built as PIE: sys-sight must warn, not report wrong addresses.
+    add_executable(example_pie examples/single_thread_single_function_test/main.c)
+    target_include_directories(example_pie PRIVATE include)
+    set_target_properties(example_pie PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(example_pie PRIVATE
+        -O0 -g -fPIE -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(example_pie PRIVATE -pie)
+    add_test(NAME tracer_warns_on_pie COMMAND sys-sight $<TARGET_FILE:example_pie>)
+    set_tests_properties(tracer_warns_on_pie PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"code\":\"pie\""
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
+
+    set(EXAMPLE_CHECK ${CMAKE_SOURCE_DIR}/tests/example/check_output.cmake)
+    add_test(NAME example_runs
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:single_thread_single_function_test>
+            -P ${EXAMPLE_CHECK})
+    set(EXAMPLE_HEAP_KIND heap)
+    if(SYS_SIGHT_ENABLE_address)
+        set(EXAMPLE_HEAP_KIND mmap)
+    endif()
+    add_test(NAME example_runs_under_tracer
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:single_thread_single_function_test>
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DHEAP_KIND=${EXAMPLE_HEAP_KIND}
+            -P ${EXAMPLE_CHECK})
+    # The tracer must report a failing tracee instead of exiting 0.
+    add_test(NAME tracer_reports_nonzero_exit COMMAND sys-sight /bin/false)
+    set_tests_properties(tracer_reports_nonzero_exit PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"exit\":\\{\"status\":1\\}")
+    add_test(NAME tracer_reports_signal
+        COMMAND sys-sight /bin/sh -c "kill -SEGV $$")
+    set_tests_properties(tracer_reports_signal PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"exit\":\\{\"signal\":11\\}")
+    add_test(NAME tracer_no_snapshot_without_marker COMMAND sys-sight /bin/true)
+    set_tests_properties(tracer_no_snapshot_without_marker PROPERTIES
+        FAIL_REGULAR_EXPRESSION "\"snapshot\"")
+    add_test(NAME tracer_reports_exec_failure
+        COMMAND sys-sight /nonexistent_prog)
+    set_tests_properties(tracer_reports_exec_failure PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"exec_failed\",\"errno\":2")
+    add_test(NAME tracer_exec_failure_exit_code
+        COMMAND sh -c "$<TARGET_FILE:sys-sight> /nonexistent_prog 2>/dev/null; test $? -eq 127")
+    # LeakSanitizer aborts the tracee under ptrace, and ASan's fake stack
+    # moves locals off the real stack, which the frame check relies on.
+    set_tests_properties(example_runs_under_tracer PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
 endif()

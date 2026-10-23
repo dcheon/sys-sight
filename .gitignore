@@ -58,3 +58,12 @@ sys-sight-*.jsonl
 .claude/
 .codex/
 .copilot/
+
+# Local project memory (not published)
+docs/MEMORY.md
+
+# Example programs built in the repository root (see examples/*/README.md)
+/single_thread_single_function_test
+/nested_calls
+/memory_ops
+/stack_growth

@@ -39,10 +39,25 @@ struct MunmapEvent {
 };
 
 struct BrkEvent {
-    Address previous_break;
+    Address requested;  // 0 asks for the current break
     Address current_break;
 };
 
-using StateEvent = std::variant<OpenEvent, CloseEvent, DupEvent, MmapEvent, MunmapEvent, BrkEvent>;
+struct MprotectEvent {
+    Address start;
+    std::uint64_t length;
+    int protection;
+};
+
+struct MremapEvent {
+    Address old_start;
+    std::uint64_t old_length;
+    Address new_start;
+    std::uint64_t new_length;
+    bool keep_old;  // MREMAP_DONTUNMAP
+};
+
+using StateEvent = std::variant<OpenEvent, CloseEvent, DupEvent, MmapEvent, MunmapEvent, BrkEvent,
+                                MprotectEvent, MremapEvent>;
 
 }  // namespace sys_sight
