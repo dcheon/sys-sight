@@ -79,6 +79,13 @@ if(SYS_SIGHT_BUILD_TESTS)
         -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
     target_link_options(single_thread_single_function_test PRIVATE -no-pie)
 
+    # Viewer logic tests; skipped where Node.js is not installed.
+    find_program(NODE_EXECUTABLE node)
+    if(NODE_EXECUTABLE)
+        add_test(NAME viewer_model
+            COMMAND ${NODE_EXECUTABLE} --test ${CMAKE_SOURCE_DIR}/viewer/model.test.js)
+    endif()
+
     # Three nested calls, for checking stack frames.
     add_executable(nested_calls examples/nested_calls/main.c)
     target_include_directories(nested_calls PRIVATE include)

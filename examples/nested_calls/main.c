@@ -2,6 +2,9 @@
 
 #include "sys-sight/marker.h"
 
+int g_data = 7;            /* .data */
+int g_bss;                 /* .bss */
+
 static void row_int(const char *name, const char *region, const int *p)
 {
     char value[32];
@@ -34,5 +37,7 @@ int main(void)
     printf("%-12s %-16s %-8s %-16s %s\n", "name", "value", "region", "address", "points to");
     outer();
     row_int("in_main", "stack", &in_main);
+    row_int("g_data", ".data", &g_data);
+    row_int("g_bss", ".bss", &g_bss);
     return 0;
 }
