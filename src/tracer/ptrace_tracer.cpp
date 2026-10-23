@@ -6,6 +6,7 @@
 #include "state/proc_bootstrap.h"
 #include "state/proc_maps.h"
 #include "state/region_classifier.h"
+#include "state/stack_walker.h"
 #include "syscall/syscall_decoder_x86_64.h"
 #include "sys-sight/marker.h"
 #include "tracer/tracee_memory.h"
@@ -64,12 +65,36 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
                       "build with -no-pie\"}}\n";
             elf.sections.clear();
             elf.symbols.clear();
+            elf.functions.clear();
         }
         for (auto& symbol : elf.symbols) {
             symbol.value = read_tracee_integer(pid, symbol.address, symbol.size);
         }
     } catch (const std::exception& error) {
         write_error(output, "elf_unreadable", error);
+    }
+
+    std::vector<AddressRange> text;
+    for (const auto& region : regions) {
+        if (region.kind == RegionKind::Text) {
+            text.push_back({region.entry.start, region.entry.end});
+        }
+    }
+    const auto walk = walk_stack(
+        registers.rsp, registers.rbp,
+        [pid](Address address) { return read_tracee_integer(pid, address, 8); }, elf.functions,
+        text);
+    if (walk.end == StackWalkEnd::NoFramePointer) {
+        output << "{\"diagnostic\":{\"level\":\"warning\",\"code\":\"no_frame_pointer\","
+                  "\"message\":";
+        write_json_string(output, "function '" + walk.failed_function +
+                                      "' does not set up a frame pointer (optimized build?); "
+                                      "build with -O0 -fno-omit-frame-pointer");
+        output << "}}\n";
+    } else if (walk.frames.empty() || walk.end == StackWalkEnd::BrokenChain) {
+        output << "{\"diagnostic\":{\"level\":\"warning\",\"code\":\"stack_walk\","
+                  "\"message\":\"stack frames incomplete: build with -fno-omit-frame-pointer "
+                  "and call the marker from the executable\"}}\n";
     }
 
     output << "{\"snapshot\":{\"trigger\":\"marker\",\"sequence\":" << sequence
@@ -79,6 +104,8 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
     write_regions_json(output, regions);
     output << ",\"executable\":";
     write_executable_json(output, executable_path, elf);
+    output << ",\"stack\":";
+    write_stack_json(output, walk);
     output << "}}\n" << std::flush;
 }
 
@@ -87,6 +114,8 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
 PtraceTracer::PtraceTracer(std::vector<std::string> command) : command_(std::move(command)) {}
 
 int PtraceTracer::run(std::ostream& output) {
+    output << "{\"schema_version\":" << kSchemaVersion << "}\n";
+
     // The pipe closes on a successful exec; on failure the child sends errno.
     int exec_pipe[2];
     if (pipe2(exec_pipe, O_CLOEXEC) == -1) {

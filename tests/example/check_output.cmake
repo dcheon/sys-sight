@@ -35,6 +35,10 @@ if(TRACER AND NOT out MATCHES "\"exit\":{\"status\":0}")
 endif()
 
 if(TRACER)
+    if(NOT out MATCHES "^\\{\"schema_version\":1\\}\n")
+        message(FATAL_ERROR "output does not start with schema_version 1\n${out}")
+    endif()
+
     string(REGEX MATCHALL "\"snapshot\":" snapshots "${out}")
     list(LENGTH snapshots snapshot_count)
     if(NOT snapshot_count EQUAL 1)

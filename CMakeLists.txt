@@ -27,6 +27,7 @@ add_library(sys_sight_core
     src/state/proc_bootstrap.cpp
     src/state/proc_maps.cpp
     src/state/region_classifier.cpp
+    src/state/stack_walker.cpp
     src/syscall/syscall_decoder_x86_64.cpp
     src/tracer/ptrace_tracer.cpp
     src/output/jsonl_writer.cpp
@@ -57,6 +58,7 @@ if(SYS_SIGHT_BUILD_TESTS)
         tests/unit/region_classifier_test.cpp
         tests/unit/syscall_decoder_test.cpp
         tests/unit/elf_reader_test.cpp
+        tests/unit/stack_walker_test.cpp
         tests/unit/tracee_memory_test.cpp
     )
     target_link_libraries(sys_sight_tests PRIVATE sys_sight_core GTest::gtest_main)
@@ -76,6 +78,34 @@ if(SYS_SIGHT_BUILD_TESTS)
     target_compile_options(single_thread_single_function_test PRIVATE
         -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
     target_link_options(single_thread_single_function_test PRIVATE -no-pie)
+
+    # Three nested calls, for checking stack frames.
+    add_executable(nested_calls examples/nested_calls/main.c)
+    target_include_directories(nested_calls PRIVATE include)
+    set_target_properties(nested_calls PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(nested_calls PRIVATE
+        -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(nested_calls PRIVATE -no-pie)
+    add_test(NAME nested_calls_frames
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:nested_calls>
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
+    set_tests_properties(nested_calls_frames PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    # Optimized without frame pointers: the walk must warn, not invent frames.
+    add_executable(nested_calls_optimized examples/nested_calls/main.c)
+    target_include_directories(nested_calls_optimized PRIVATE include)
+    set_target_properties(nested_calls_optimized PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(nested_calls_optimized PRIVATE
+        -O2 -fno-pie -fomit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(nested_calls_optimized PRIVATE -no-pie)
+    add_test(NAME tracer_warns_without_frame_pointer
+        COMMAND sys-sight $<TARGET_FILE:nested_calls_optimized>)
+    set_tests_properties(tracer_warns_without_frame_pointer PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"code\":\"no_frame_pointer\""
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0")
 
     # The same program built as PIE: sys-sight must warn, not report wrong addresses.
     add_executable(example_pie examples/single_thread_single_function_test/main.c)

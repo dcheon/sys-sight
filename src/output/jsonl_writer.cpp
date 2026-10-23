@@ -58,6 +58,25 @@ void write_regions_json(std::ostream& output, const std::vector<ClassifiedRegion
     output << ']';
 }
 
+void write_stack_json(std::ostream& output, const StackWalk& walk) {
+    output << "{\"end\":\"" << to_string(walk.end) << "\",\"frames\":[";
+    for (std::size_t index = 0; index < walk.frames.size(); ++index) {
+        const auto& frame = walk.frames[index];
+        output << (index == 0 ? "" : ",") << "{\"index\":" << index << ",\"function\":";
+        if (frame.function.empty()) {
+            output << "null";
+        } else {
+            write_json_string(output, frame.function);
+        }
+        output << ",\"start\":\"" << hex_address(frame.start) << "\",\"end\":\""
+               << hex_address(frame.end) << "\",\"frame_pointer\":\""
+               << hex_address(frame.frame_pointer) << "\",\"saved_frame_pointer\":\""
+               << hex_address(frame.saved_frame_pointer) << "\",\"return_address\":\""
+               << hex_address(frame.return_address) << "\"}";
+    }
+    output << "]}";
+}
+
 void write_executable_json(std::ostream& output, const std::string& path, const ElfInfo& elf) {
     output << "{\"path\":";
     write_json_string(output, path);

@@ -27,10 +27,17 @@ struct ElfSymbol {
     std::optional<std::uint64_t> value;
 };
 
+struct ElfFunction {
+    std::string name;
+    Address address;
+    std::uint64_t size;
+};
+
 struct ElfInfo {
     bool pie = false;
     std::vector<ElfSection> sections;
-    std::vector<ElfSymbol> symbols;  // empty for stripped executables
+    std::vector<ElfSymbol> symbols;      // data objects; empty for stripped executables
+    std::vector<ElfFunction> functions;  // sized function symbols, used to name stack frames
 };
 
 // Reads a 64-bit little-endian x86-64 ELF file. Throws on unreadable or

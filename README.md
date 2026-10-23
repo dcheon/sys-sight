@@ -22,7 +22,8 @@ The tracer currently targets Linux x86-64 and requires CMake 3.20 or newer
 with a C++20 compiler.
 
 Example target programs live in [examples/](examples/). Exit codes and errno
-values are described in [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
+values are described in [docs/EXIT_CODES.md](docs/EXIT_CODES.md), and the
+JSONL output format in [docs/OUTPUT_SCHEMA.md](docs/OUTPUT_SCHEMA.md).
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the architecture, implementation
 plan, milestones, and definition of done.

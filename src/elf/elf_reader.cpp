@@ -118,12 +118,19 @@ ElfInfo read_elf(const std::string& path) {
         const auto& strings = headers[table.sh_link];
         for (std::uint64_t index = 0; index < table.sh_size / sizeof(Elf64_Sym); ++index) {
             const auto symbol = file.read<Elf64_Sym>(table.sh_offset + index * sizeof(Elf64_Sym));
-            if (ELF64_ST_TYPE(symbol.st_info) != STT_OBJECT || symbol.st_shndx == SHN_UNDEF ||
+            const auto type = ELF64_ST_TYPE(symbol.st_info);
+            if ((type != STT_OBJECT && type != STT_FUNC) || symbol.st_shndx == SHN_UNDEF ||
                 symbol.st_shndx >= headers.size()) {
                 continue;
             }
             auto name = file.string_at(strings.sh_offset, strings.sh_size, symbol.st_name);
             if (name.empty()) {
+                continue;
+            }
+            if (type == STT_FUNC) {
+                if (symbol.st_size > 0) {
+                    info.functions.push_back({std::move(name), symbol.st_value, symbol.st_size});
+                }
                 continue;
             }
             info.symbols.push_back({std::move(name), symbol.st_value, symbol.st_size,
