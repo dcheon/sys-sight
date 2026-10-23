@@ -58,3 +58,6 @@ sys-sight-*.jsonl
 .claude/
 .codex/
 .copilot/
+
+# Local project memory (not published)
+docs/MEMORY.md
