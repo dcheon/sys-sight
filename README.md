@@ -21,5 +21,7 @@ ctest --test-dir build --output-on-failure
 The tracer currently targets Linux x86-64 and requires CMake 3.20 or newer
 with a C++20 compiler.
 
+Example target programs live in [examples/](examples/).
+
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the architecture, implementation
 plan, milestones, and definition of done.

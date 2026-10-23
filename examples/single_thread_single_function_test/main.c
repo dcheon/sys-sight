@@ -4,11 +4,29 @@
 
 #include "sys-sight/marker.h"
 
-#define SHOW(x) printf("%-12s %p = %d\n", #x, (void *)&(x), (x))
-
 int g_data = 1;            /* .data */
 int g_bss;                 /* .bss */
 const int g_rodata = 3;    /* .rodata */
+
+static void row_int(const char *name, const char *region, const int *p)
+{
+    char value[32];
+
+    snprintf(value, sizeof value, "%d", *p);
+    printf("%-12s %-16s %-8s %-16p %s\n", name, value, region,
+           (const void *)p, "-");
+}
+
+/* The value of a pointer is an address; `target` names what it points to. */
+static void row_ptr(const char *name, const char *region, void *const *p,
+                    const char *target)
+{
+    char value[32];
+
+    snprintf(value, sizeof value, "%p", *p);
+    printf("%-12s %-16s %-8s %-16p %s\n", name, value, region,
+           (const void *)p, target);
+}
 
 int main(void)
 {
@@ -24,12 +42,16 @@ int main(void)
 
     SYSSIGHT_SNAPSHOT();
 
-    SHOW(g_rodata);
-    SHOW(g_data);
-    SHOW(g_bss);
-    SHOW(*heap_int);
-    SHOW(*mapped_int);
-    SHOW(in_main);
+    printf("%-12s %-16s %-8s %-16s %s\n", "name", "value", "region",
+           "address", "points to");
+    row_int("g_rodata", ".rodata", &g_rodata);
+    row_int("g_data", ".data", &g_data);
+    row_int("g_bss", ".bss", &g_bss);
+    row_int("*heap_int", "heap", heap_int);
+    row_int("*mapped_int", "mmap", mapped_int);
+    row_int("in_main", "stack", &in_main);
+    row_ptr("heap_int", "stack", (void *const *)&heap_int, "*heap_int");
+    row_ptr("mapped_int", "stack", (void *const *)&mapped_int, "*mapped_int");
 
     free(heap_int);
     return 0;
