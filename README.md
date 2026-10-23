@@ -22,4 +22,5 @@ The tracer currently targets Linux x86-64 and requires CMake 3.20 or newer
 with a C++20 compiler.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the architecture, implementation
-plan, milestones, and definition of done.
+plan, milestones, and definition of done. See [docs/MEMORY.md](docs/MEMORY.md)
+for persistent project context, decisions, completed work, and next actions.
