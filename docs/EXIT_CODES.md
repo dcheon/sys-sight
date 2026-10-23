@@ -43,7 +43,8 @@ last JSONL line says which case applies:
 | `{"error":"bootstrap_failed",...}` | `1` | The initial `/proc` state could not be read |
 | `{"error":"exec_failed","errno":N,...}` | `127` if not found, otherwise `126` | The executable could not be started; a message is also printed to stderr |
 | none | an errno | A system call made by the tracer itself failed: `fork`, `waitpid`, or `ptrace` |
-| none | `2` | No executable was given; usage is printed to stderr |
+| `{"error":"compile_failed",...}`, `source_unreadable`, `unsupported_source`, or `build_failed` | `1` | `sys-sight run` could not build the source; no program was traced |
+| none | `2` | No executable or source was given; usage is printed to stderr |
 
 ## Limitations
 

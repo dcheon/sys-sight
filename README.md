@@ -33,6 +33,14 @@ and stack frames; without a tracer it has no effect.
 ./build/sys-sight ./a.out > output.jsonl
 ```
 
+`sys-sight run` compiles a C source with those flags and traces it in one
+step. The compiler is `$CC` or `cc`; extra arguments go to the program, and
+the build files are removed afterwards.
+
+```bash
+./build/sys-sight run program.c [args...] > output.jsonl
+```
+
 Open [viewer/index.html](viewer/index.html) in a browser and load
 `output.jsonl` to see the address space with low addresses on top. The viewer
 runs locally and needs no server.

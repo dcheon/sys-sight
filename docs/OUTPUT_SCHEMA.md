@@ -25,12 +25,23 @@ has a single top-level key that names its kind. The format version is
 | Key | Meaning |
 | --- | --- |
 | `schema_version` | Format version. Always the first line. |
+| `build` | How `sys-sight run` compiled the source (only for `run`). |
 | `bootstrap` | Counts of file descriptors and memory regions found at start. |
 | `sequence` | A system call event (see below). |
 | `snapshot` | The process state at a snapshot marker. |
 | `diagnostic` | A warning about the quality of the result. |
 | `error` | Something could not be read or started. |
 | `exit` | The traced program ended. Always the last line of a run that started. |
+
+### Build
+
+```json
+{"build":{"compiler":"cc","flags":["-std=gnu11","-O0","-g","-no-pie","-fno-pie","-fno-omit-frame-pointer"],"duration_ms":390}}
+```
+
+Written by `sys-sight run <source.c>` after the source compiled, before
+tracing starts. `compiler` is the `CC` environment variable or `cc`;
+`duration_ms` is the compile time.
 
 ### System call event
 
@@ -122,6 +133,10 @@ Diagnostics for a snapshot appear before its `snapshot` line.
 | `error` | Meaning |
 | --- | --- |
 | `exec_failed` | The program could not be started. |
+| `compile_failed` | `sys-sight run` could not compile the source; the compiler's messages are on stderr. |
+| `source_unreadable` | `sys-sight run` was given a path that is not a readable file. |
+| `unsupported_source` | `sys-sight run` was given a file that is not a `.c` source. |
+| `build_failed` | `sys-sight run` could not prepare its build directory. |
 | `bootstrap_failed` | The initial `/proc` state could not be read. |
 | `maps_unreadable` | `/proc/<pid>/maps` could not be read for a snapshot. |
 | `elf_unreadable` | The program's ELF file could not be read for a snapshot. |

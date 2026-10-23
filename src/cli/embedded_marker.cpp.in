@@ -1,0 +1,7 @@
+#include "cli/embedded_marker.h"
+
+namespace sys_sight {
+
+const char* const kMarkerHeader = R"SYSSIGHT_MARKER(@SYSSIGHT_MARKER_HEADER@)SYSSIGHT_MARKER";
+
+}  // namespace sys_sight

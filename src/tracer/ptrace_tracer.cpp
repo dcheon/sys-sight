@@ -114,8 +114,6 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
 PtraceTracer::PtraceTracer(std::vector<std::string> command) : command_(std::move(command)) {}
 
 int PtraceTracer::run(std::ostream& output) {
-    output << "{\"schema_version\":" << kSchemaVersion << "}\n";
-
     // The pipe closes on a successful exec; on failure the child sends errno.
     int exec_pipe[2];
     if (pipe2(exec_pipe, O_CLOEXEC) == -1) {

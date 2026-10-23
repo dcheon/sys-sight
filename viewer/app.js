@@ -50,6 +50,9 @@
     add(box, item('program', model.executable.path || '?'),
         item('rsp', model.registers.rsp), item('rbp', model.registers.rbp),
         item('pie', String(model.executable.pie)));
+    if (model.build) {
+      add(box, item('build', model.build.compiler + ', ' + model.build.duration_ms + ' ms'));
+    }
     return box;
   }
 

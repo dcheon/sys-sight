@@ -74,6 +74,22 @@ test('exec_failed is reported as an error and a failed run', () => {
   assert.strictEqual(model.errors[0].error, 'exec_failed');
 });
 
+test('build failures from sys-sight run mark the run as failed', () => {
+  for (const code of ['compile_failed', 'source_unreadable', 'unsupported_source', 'build_failed']) {
+    const model = buildModel('{"schema_version":1}\n{"error":"' + code + '","message":"x"}');
+    assert.ok(model.failed, code);
+  }
+  const notFatal = buildModel('{"schema_version":1}\n{"error":"maps_unreadable","message":"x"}');
+  assert.ok(!notFatal.failed);
+});
+
+test('the build line of sys-sight run is kept', () => {
+  const model = buildModel('{"schema_version":1}\n{"build":{"compiler":"cc","flags":[],"duration_ms":390}}');
+  assert.strictEqual(model.build.compiler, 'cc');
+  assert.strictEqual(model.build.duration_ms, 390);
+  assert.strictEqual(buildModel(sample).build, null);
+});
+
 test('consecutive mappings of one library become one row', () => {
   const rows = groupRegions([
     { ...region(1n, 2n, 'mmap', '/lib/libc.so.6'), symbols: [], frames: [] },

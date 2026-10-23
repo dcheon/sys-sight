@@ -1,8 +1,9 @@
 # Runs the nested_calls example under the tracer and checks the stack frames
 # in the snapshot against the addresses the program printed.
-# Usage: cmake -DEXE=<program> -DTRACER=<sys-sight> -P check_frames.cmake
+# Usage: cmake -DEXE=<program or source> -DTRACER=<sys-sight> [-DTRACER_ARGS=run]
+#        -P check_frames.cmake
 
-execute_process(COMMAND ${TRACER} ${EXE}
+execute_process(COMMAND ${TRACER} ${TRACER_ARGS} ${EXE}
     RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "exited with '${rc}'\n${out}${err}")

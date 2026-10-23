@@ -5,6 +5,11 @@
 
   const SUPPORTED_VERSION = 1;
 
+  // Errors after which there is no meaningful run to show.
+  const RUN_FAILURES = new Set([
+    'exec_failed', 'compile_failed', 'source_unreadable', 'unsupported_source', 'build_failed',
+  ]);
+
   const TOOLCHAIN_SECTIONS = new Set([
     '.note.ABI-tag', '.eh_frame', '.init_array', '.fini_array', '.dynamic', '.got', '.got.plt',
     '.tm_clone_table', '.eh_frame_hdr',
@@ -109,8 +114,9 @@
       else if ('exit' in object) model.exit = object.exit;
       else if ('sequence' in object && 'syscall' in object) model.syscallCount++;
     }
+    model.build = (objects.find((object) => 'build' in object) || {}).build || null;
     model.failed = Boolean(model.exit && (model.exit.signal !== undefined || model.exit.status !== 0)) ||
-                   model.errors.some((error) => error.error === 'exec_failed');
+                   model.errors.some((error) => RUN_FAILURES.has(error.error));
     model.ok = true;
     if (!model.snapshot) return model;
 

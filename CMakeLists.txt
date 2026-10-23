@@ -35,7 +35,15 @@ add_library(sys_sight_core
 target_include_directories(sys_sight_core PUBLIC src include)
 target_compile_options(sys_sight_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(sys-sight src/cli/main.cpp)
+# The marker header is embedded so `sys-sight run` needs no installed files.
+file(READ include/sys-sight/marker.h SYSSIGHT_MARKER_HEADER)
+configure_file(src/cli/embedded_marker.cpp.in ${CMAKE_BINARY_DIR}/embedded_marker.cpp @ONLY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS include/sys-sight/marker.h)
+
+add_executable(sys-sight
+    src/cli/main.cpp
+    src/cli/run_source.cpp
+    ${CMAKE_BINARY_DIR}/embedded_marker.cpp)
 target_link_libraries(sys-sight PRIVATE sys_sight_core)
 target_compile_options(sys-sight PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
@@ -100,6 +108,39 @@ if(SYS_SIGHT_BUILD_TESTS)
             -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
     set_tests_properties(nested_calls_frames PROPERTIES
         ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    # `sys-sight run`: compile with the required flags, trace, clean up.
+    add_test(NAME run_source_frames
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=${CMAKE_SOURCE_DIR}/examples/nested_calls/main.c
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DTRACER_ARGS=run
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
+    set_tests_properties(run_source_frames PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    add_test(NAME run_reports_compile_error
+        COMMAND sys-sight run ${CMAKE_SOURCE_DIR}/tests/example/broken.c)
+    set_tests_properties(run_reports_compile_error PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"compile_failed\"")
+    add_test(NAME run_compile_error_exit_code
+        COMMAND sh -c "$<TARGET_FILE:sys-sight> run ${CMAKE_SOURCE_DIR}/tests/example/broken.c >/dev/null 2>&1; test $? -eq 1")
+
+    add_test(NAME run_reports_missing_source COMMAND sys-sight run /nonexistent/missing.c)
+    set_tests_properties(run_reports_missing_source PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"source_unreadable\"")
+    add_test(NAME run_reports_unsupported_source
+        COMMAND sys-sight run ${CMAKE_SOURCE_DIR}/README.md)
+    set_tests_properties(run_reports_unsupported_source PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"error\":\"unsupported_source\"")
+
+    # Success and failure must both remove the build directory.
+    set(RUN_TMP ${CMAKE_BINARY_DIR}/run_tmp)
+    add_test(NAME run_removes_build_files
+        COMMAND sh -c "rm -rf ${RUN_TMP} && mkdir -p ${RUN_TMP} && \
+TMPDIR=${RUN_TMP} $<TARGET_FILE:sys-sight> run ${CMAKE_SOURCE_DIR}/examples/nested_calls/main.c >/dev/null 2>&1; \
+TMPDIR=${RUN_TMP} $<TARGET_FILE:sys-sight> run ${CMAKE_SOURCE_DIR}/tests/example/broken.c >/dev/null 2>&1; \
+test -z \"$(ls -A ${RUN_TMP})\"")
 
     # Optimized without frame pointers: the walk must warn, not invent frames.
     add_executable(nested_calls_optimized examples/nested_calls/main.c)
