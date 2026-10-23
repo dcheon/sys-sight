@@ -2,6 +2,7 @@
 
 #include "elf/elf_reader.h"
 #include "output/jsonl_writer.h"
+#include "state/memory_oracle.h"
 #include "state/process_state.h"
 #include "state/proc_bootstrap.h"
 #include "state/proc_maps.h"
@@ -45,14 +46,29 @@ void write_error(std::ostream& output, const char* code, const std::exception& e
 }
 
 void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
-                    const user_regs_struct& registers) {
+                    const user_regs_struct& registers, const ProcessState& state) {
     const auto executable_path = read_proc_exe(pid);
 
+    std::vector<ProcMapsEntry> maps;
     std::vector<ClassifiedRegion> regions;
+    bool maps_read = false;
     try {
-        regions = classify_regions(read_proc_maps(pid), executable_path);
+        maps = read_proc_maps(pid);
+        regions = classify_regions(maps, executable_path);
+        maps_read = true;
     } catch (const std::exception& error) {
         write_error(output, "maps_unreadable", error);
+    }
+
+    // The oracle: does the state rebuilt from system calls agree with /proc?
+    OracleResult oracle;
+    if (maps_read) {
+        oracle = compare_memory_maps(state.memory_map().regions(), maps);
+        if (!oracle.matches()) {
+            output << "{\"diagnostic\":{\"level\":\"warning\",\"code\":\"oracle_mismatch\","
+                      "\"message\":\"the memory map rebuilt from system calls differs from "
+                      "/proc/<pid>/maps; see snapshot.oracle\"}}\n";
+        }
     }
 
     ElfInfo elf;
@@ -106,6 +122,8 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
     write_executable_json(output, executable_path, elf);
     output << ",\"stack\":";
     write_stack_json(output, walk);
+    output << ",\"oracle\":";
+    write_oracle_json(output, oracle, maps_read, state.memory_map().regions().size(), maps.size());
     output << "}}\n" << std::flush;
 }
 
@@ -227,7 +245,7 @@ int PtraceTracer::run(std::ostream& output) {
         if (event.entry && event.number == SYSSIGHT_MARKER_SYSCALL) {
             // The tracee is already stopped at syscall entry; resuming it
             // returns -ENOSYS to the program.
-            write_snapshot(output, child, event.sequence, registers);
+            write_snapshot(output, child, event.sequence, registers, state);
         }
         in_syscall = !in_syscall;
     }

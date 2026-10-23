@@ -156,6 +156,7 @@
     model.frames = frames;
     model.stackEnd = snapshot.stack ? snapshot.stack.end : '';
     model.registers = snapshot.registers;
+    model.oracle = snapshot.oracle || null;
     model.executable = executable;
     return model;
   }

@@ -1,5 +1,6 @@
 #include "output/jsonl_writer.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <ostream>
 
@@ -56,6 +57,42 @@ void write_regions_json(std::ostream& output, const std::vector<ClassifiedRegion
         output << '}';
     }
     output << ']';
+}
+
+namespace {
+
+constexpr std::size_t kMaxReportedMismatches = 50;
+
+// -1 (unmapped) is null; otherwise "rwx" with '-' for missing bits.
+void write_protection(std::ostream& output, int protection) {
+    if (protection < 0) {
+        output << "null";
+        return;
+    }
+    output << '"' << ((protection & 1) ? 'r' : '-') << ((protection & 2) ? 'w' : '-')
+           << ((protection & 4) ? 'x' : '-') << '"';
+}
+
+}  // namespace
+
+void write_oracle_json(std::ostream& output, const OracleResult& oracle, bool compared,
+                       std::size_t reducer_regions, std::size_t proc_regions) {
+    output << "{\"compared\":" << (compared ? "true" : "false")
+           << ",\"matches\":" << (compared && oracle.matches() ? "true" : "false")
+           << ",\"reducer_regions\":" << reducer_regions << ",\"proc_regions\":" << proc_regions
+           << ",\"stack_growth_bytes\":" << oracle.stack_growth_bytes
+           << ",\"mismatch_count\":" << oracle.mismatches.size() << ",\"mismatches\":[";
+    const auto reported = std::min(oracle.mismatches.size(), kMaxReportedMismatches);
+    for (std::size_t index = 0; index < reported; ++index) {
+        const auto& mismatch = oracle.mismatches[index];
+        output << (index == 0 ? "" : ",") << "{\"start\":\"" << hex_address(mismatch.start)
+               << "\",\"end\":\"" << hex_address(mismatch.end) << "\",\"reducer\":";
+        write_protection(output, mismatch.reducer_protection);
+        output << ",\"proc\":";
+        write_protection(output, mismatch.proc_protection);
+        output << '}';
+    }
+    output << "]}";
 }
 
 void write_stack_json(std::ostream& output, const StackWalk& walk) {

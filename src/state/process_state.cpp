@@ -31,7 +31,12 @@ void ProcessState::apply(const StateEvent& event) {
             } else if constexpr (std::is_same_v<Event, MunmapEvent>) {
                 memory_map_.unmap(value.start, value.length);
             } else if constexpr (std::is_same_v<Event, BrkEvent>) {
-                memory_map_.set_break(value.current_break);
+                memory_map_.set_break(value.requested, value.current_break);
+            } else if constexpr (std::is_same_v<Event, MprotectEvent>) {
+                memory_map_.protect(value.start, value.length, value.protection);
+            } else if constexpr (std::is_same_v<Event, MremapEvent>) {
+                memory_map_.remap(value.old_start, value.old_length, value.new_start,
+                                  value.new_length, value.keep_old);
             }
         },
         event);

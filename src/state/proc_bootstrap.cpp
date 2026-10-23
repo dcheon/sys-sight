@@ -19,23 +19,6 @@
 #include <utility>
 
 namespace sys_sight {
-namespace {
-
-int protection_from_permissions(std::string_view permissions) {
-    int protection = 0;
-    if (permissions.size() >= 1 && permissions[0] == 'r') {
-        protection |= 1;
-    }
-    if (permissions.size() >= 2 && permissions[1] == 'w') {
-        protection |= 2;
-    }
-    if (permissions.size() >= 3 && permissions[2] == 'x') {
-        protection |= 4;
-    }
-    return protection;
-}
-
-}  // namespace
 
 BootstrapResult ProcBootstrap::seed(pid_t pid, ProcessState& state) {
     state.clear();

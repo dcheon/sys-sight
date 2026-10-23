@@ -162,6 +162,24 @@
       result.appendChild(el('p', 'muted', model.hiddenSymbols + ' toolchain symbols hidden.'));
     }
 
+    add(result, el('h2', null, 'Memory map check'));
+    const oracle = model.oracle;
+    if (!oracle) {
+      result.appendChild(el('p', 'muted', 'This output has no memory map check.'));
+    } else if (!oracle.compared) {
+      result.appendChild(banner('warn', '/proc/<pid>/maps could not be read, so the check did not run.'));
+    } else if (oracle.matches) {
+      result.appendChild(banner('ok', 'The memory map rebuilt from system calls matches /proc/<pid>/maps.' +
+        (oracle.stack_growth_bytes ? ' The kernel grew the stack by ' + M.sizeText(BigInt(oracle.stack_growth_bytes)) +
+          ' without a system call.' : '')));
+    } else {
+      result.appendChild(banner('warn', oracle.mismatch_count + ' address range(s) differ between the system-call ' +
+        'view and /proc/<pid>/maps.'));
+      result.appendChild(table(['start', 'end', 'from system calls', 'from /proc'],
+        oracle.mismatches.map((mismatch) => [mismatch.start, mismatch.end,
+                                             mismatch.reducer || 'unmapped', mismatch.proc || 'unmapped'])));
+    }
+
     add(result, el('h2', null, 'Stack frames'));
     if (model.frames.length) {
       result.appendChild(table(['#', 'function', 'start', 'end', 'size', 'frame pointer', 'returns to'],

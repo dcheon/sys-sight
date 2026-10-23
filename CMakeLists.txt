@@ -26,6 +26,7 @@ add_library(sys_sight_core
     src/state/process_state.cpp
     src/state/proc_bootstrap.cpp
     src/state/proc_maps.cpp
+    src/state/memory_oracle.cpp
     src/state/region_classifier.cpp
     src/state/stack_walker.cpp
     src/syscall/syscall_decoder_x86_64.cpp
@@ -66,6 +67,7 @@ if(SYS_SIGHT_BUILD_TESTS)
         tests/unit/region_classifier_test.cpp
         tests/unit/syscall_decoder_test.cpp
         tests/unit/elf_reader_test.cpp
+        tests/unit/memory_oracle_test.cpp
         tests/unit/stack_walker_test.cpp
         tests/unit/tracee_memory_test.cpp
     )
@@ -118,6 +120,24 @@ if(SYS_SIGHT_BUILD_TESTS)
             -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
     set_tests_properties(run_source_frames PROPERTIES
         ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    # The oracle: the memory map rebuilt from system calls must equal /proc.
+    foreach(workload nested_calls memory_ops single_thread_single_function_test)
+        add_test(NAME oracle_${workload}
+            COMMAND ${CMAKE_COMMAND}
+                -DEXE=${CMAKE_SOURCE_DIR}/examples/${workload}/main.c
+                -DTRACER=$<TARGET_FILE:sys-sight>
+                -DTRACER_ARGS=run
+                -P ${CMAKE_SOURCE_DIR}/tests/example/check_oracle.cmake)
+    endforeach()
+
+    add_test(NAME oracle_stack_growth
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=${CMAKE_SOURCE_DIR}/examples/stack_growth/main.c
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DTRACER_ARGS=run
+            -DEXPECT_STACK_GROWTH=ON
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_oracle.cmake)
 
     add_test(NAME run_reports_compile_error
         COMMAND sys-sight run ${CMAKE_SOURCE_DIR}/tests/example/broken.c)

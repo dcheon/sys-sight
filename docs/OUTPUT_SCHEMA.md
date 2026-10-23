@@ -73,7 +73,9 @@ Emitted when the traced program calls `SYSSIGHT_SNAPSHOT()`.
     "end":"left_executable",
     "frames":[{"index":0,"function":"main","start":"0x7ffd2d407990","end":"0x7ffd2d4079c0",
                "frame_pointer":"0x7ffd2d4079b0","saved_frame_pointer":"0x1","return_address":"0x7b6f9f22a601"}]
-  }
+  },
+  "oracle":{"compared":true,"matches":true,"reducer_regions":20,"proc_regions":24,
+            "stack_growth_bytes":0,"mismatch_count":0,"mismatches":[]}
 }}
 ```
 
@@ -88,6 +90,7 @@ Emitted when the traced program calls `SYSSIGHT_SNAPSHOT()`.
 | `executable.symbols` | Data objects from the symbol table, including toolchain-generated ones. `value` is present for objects of 1, 2, 4 or 8 bytes, as a hex string of the little-endian value. The list is empty for stripped programs. |
 | `stack.frames` | Stack frames from the innermost (the function that called the marker, index 0) outward. `start` to `end` is the frame's address range, `function` is `null` when unknown. |
 | `stack.end` | Why the walk stopped (see below). |
+| `oracle` | A check of the memory map that `sys-sight` rebuilt from system calls against `/proc/<pid>/maps` (see below). |
 
 Region `kind`:
 
@@ -110,6 +113,21 @@ Region `kind`:
 | `no_frame_pointer` | A function does not set up a frame pointer; the walk stopped before it. |
 | `depth_limit` | 64 frames were reached. |
 
+`oracle`:
+
+| Field | Meaning |
+| --- | --- |
+| `compared` | `false` if `/proc/<pid>/maps` could not be read, so there is no verdict. |
+| `matches` | `true` when address coverage and protection agree everywhere. |
+| `reducer_regions`, `proc_regions` | Number of regions on each side (they can differ in count while agreeing, because `/proc` lists a new region per file or offset). |
+| `stack_growth_bytes` | How far the kernel grew `[stack]` downward without any system call. This is reported here and is not a mismatch. |
+| `mismatch_count` | Number of differing address ranges. |
+| `mismatches` | At most 50 ranges: `start`, `end`, and the protection (`"rwx"` letters with `-`, or `null` if unmapped) according to the system calls (`reducer`) and to `/proc` (`proc`). |
+
+The comparison ignores names, offsets and the private/shared flag. Memory
+maps are rebuilt from `mmap`, `munmap`, `mprotect`, `mremap` and `brk`; the
+state at program start comes from `/proc`.
+
 ### Diagnostic
 
 ```json
@@ -121,6 +139,7 @@ Region `kind`:
 | `pie` | The program is position-independent; sections and symbols are omitted. |
 | `stack_walk` | No frames, or a broken frame pointer chain. |
 | `no_frame_pointer` | A function was built without a frame pointer. |
+| `oracle_mismatch` | The memory map rebuilt from system calls differs from `/proc`; see `snapshot.oracle`. |
 
 Diagnostics for a snapshot appear before its `snapshot` line.
 

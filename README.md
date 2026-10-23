@@ -41,6 +41,10 @@ the build files are removed afterwards.
 ./build/sys-sight run program.c [args...] > output.jsonl
 ```
 
+Each snapshot also checks the memory map that `sys-sight` rebuilt from system
+calls (`mmap`, `munmap`, `mprotect`, `mremap`, `brk`) against
+`/proc/<pid>/maps` and reports any difference.
+
 Open [viewer/index.html](viewer/index.html) in a browser and load
 `output.jsonl` to see the address space with low addresses on top. The viewer
 runs locally and needs no server.

@@ -6,6 +6,7 @@
 
 #include <istream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace sys_sight {
@@ -18,6 +19,9 @@ struct ProcMapsEntry {
     std::string permissions;
     std::string name;
 };
+
+// "rw-p" -> 3 (read = 1, write = 2, execute = 4); the private/shared flag is ignored.
+[[nodiscard]] int protection_from_permissions(std::string_view permissions);
 
 [[nodiscard]] std::vector<ProcMapsEntry> parse_proc_maps(std::istream& maps);
 [[nodiscard]] std::vector<ProcMapsEntry> read_proc_maps(pid_t pid);

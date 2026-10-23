@@ -132,6 +132,14 @@ test('a pointer shows the symbol or region it points to', () => {
   assert.strictEqual(byName.target.pointsTo, '');
 });
 
+test('the oracle result is kept, and absent in older output', () => {
+  const oracle = { compared: true, matches: false, mismatch_count: 1,
+                   mismatches: [{ start: '0x1000', end: '0x2000', reducer: 'rw-', proc: null }] };
+  const model = buildModel(stream({ regions: [], executable: { symbols: [], sections: [] }, oracle }));
+  assert.strictEqual(model.oracle.mismatch_count, 1);
+  assert.strictEqual(buildModel(stream({ regions: [] })).oracle, null);
+});
+
 test('sizes are readable', () => {
   assert.strictEqual(sizeText(4n), '4 B');
   assert.strictEqual(sizeText(4096n), '4 KiB');
