@@ -21,6 +21,24 @@ ctest --test-dir build --output-on-failure
 The tracer currently targets Linux x86-64 and requires CMake 3.20 or newer
 with a C++20 compiler.
 
+## Run with Docker
+
+The image builds the project and its tests on Ubuntu 24.04. `ctest` runs
+inside the container when it starts.
+
+```bash
+docker build -t sys-sight .
+docker run --rm sys-sight
+```
+
+All tests, including the ones that trace programs with `ptrace`, passed this
+way on Docker Desktop (WSL2) without extra privileges. If `ptrace` fails with
+`Operation not permitted` on another host, add `--cap-add=SYS_PTRACE`:
+
+```bash
+docker run --rm --cap-add=SYS_PTRACE sys-sight
+```
+
 ## Snapshots and viewer
 
 A program built with `-O0 -g -no-pie -fno-omit-frame-pointer` can mark the
