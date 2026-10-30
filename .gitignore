@@ -67,3 +67,6 @@ docs/MEMORY.md
 /nested_calls
 /memory_ops
 /stack_growth
+
+# Extra build directories (for example build-linux for WSL)
+build-*/
