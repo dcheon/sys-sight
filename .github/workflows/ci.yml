@@ -18,15 +18,15 @@ jobs:
             sanitizer_options: "-DSYS_SIGHT_ENABLE_undefined=ON"
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: ${{ runner.os }}-${{ matrix.name }}-${{ hashFiles('CMakeLists.txt') }}
       - name: Configure (${{ matrix.name }})
         run: >
           cmake -S . -B build
           -DSYS_SIGHT_BUILD_TESTS=ON
           ${{ matrix.sanitizer_options }}
-      - uses: actions/cache$v4
-        with:
-          path: build/_deps
-          key: ${{ runner.os }}-${{ matrix.name }}-${{ hashFiles('CMakeLists.txt') }}
       - name: Build (${{ matrix.name }})
         run: cmake --build build --parallel
       - name: Run unit tests (${{ matrix.name }})
