@@ -12,9 +12,9 @@ jobs:
         include:
           - name: normal
             sanitizer_options: ""
-          - name: address-sanitizer
+          - name: ASan(address-sanitizer)
             sanitizer_options: "-DSYS_SIGHT_ENABLE_address=ON"
-          - name: undefined-behavior-sanitizer
+          - name: UBSan(undefined-behavior-sanitizer)
             sanitizer_options: "-DSYS_SIGHT_ENABLE_undefined=ON"
     steps:
       - uses: actions/checkout@v4
