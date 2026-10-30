@@ -2,22 +2,28 @@ name: Linux CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
   build-and-test:
+    name: build-and-test (${{ matrix.name }})
     runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
           - name: normal
             sanitizer_options: ""
-          - name: address-sanitizer
+          - name: ASan
             sanitizer_options: "-DSYS_SIGHT_ENABLE_address=ON"
-          - name: undefined-behavior-sanitizer
+          - name: UBSan
             sanitizer_options: "-DSYS_SIGHT_ENABLE_undefined=ON"
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: ${{ runner.os }}-${{ matrix.name }}-${{ hashFiles('CMakeLists.txt') }}
       - name: Configure (${{ matrix.name }})
         run: >
           cmake -S . -B build
