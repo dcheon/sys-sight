@@ -185,7 +185,6 @@ int PtraceTracer::run(std::ostream& output) {
         return errno;
     }
 
-    bool in_syscall = false;
     std::int64_t sequence = 0;
     ProcessState state;
     try {
@@ -222,6 +221,16 @@ int PtraceTracer::run(std::ostream& output) {
             continue;
         }
 
+        // The kernel says whether this stop is a system call entry or exit.
+        __ptrace_syscall_info info {};
+        if (ptrace(PTRACE_GET_SYSCALL_INFO, child, reinterpret_cast<void*>(sizeof info),
+                   &info) == -1) {
+            return errno;
+        }
+        if (info.op != PTRACE_SYSCALL_INFO_ENTRY && info.op != PTRACE_SYSCALL_INFO_EXIT) {
+            continue;
+        }
+
         user_regs_struct registers {};
         if (ptrace(PTRACE_GETREGS, child, nullptr, &registers) == -1) {
             return errno;
@@ -231,7 +240,7 @@ int PtraceTracer::run(std::ostream& output) {
             child,
             child,
             static_cast<std::int64_t>(registers.orig_rax),
-            !in_syscall,
+            info.op == PTRACE_SYSCALL_INFO_ENTRY,
             {registers.rdi, registers.rsi, registers.rdx, registers.r10, registers.r8,
              registers.r9},
             static_cast<std::int64_t>(registers.rax),
@@ -247,7 +256,6 @@ int PtraceTracer::run(std::ostream& output) {
             // returns -ENOSYS to the program.
             write_snapshot(output, child, event.sequence, registers, state);
         }
-        in_syscall = !in_syscall;
     }
 }
 
