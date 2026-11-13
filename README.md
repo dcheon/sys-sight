@@ -1,13 +1,25 @@
 # SysSight
 
-SysSight is a C++20 Linux x86-64 system call tracing and process-state
-reconstruction engine.
+SysSight shows what a running C program looks like to the operating system.
+It runs a program, stops it at a point you mark, and shows where its data
+lives: which memory region each variable is in, what the stack frames hold,
+and which system calls the program made. It exists because operating-system
+topics such as memory layout, `fork`, and threads are easier to understand
+when you can see them than when you only read about them.
 
-The project uses `ptrace` to collect system call entry/exit events and pure
-state reducers to model file descriptor and virtual memory mapping lifecycles.
-The current implementation is an early Phase 1 vertical slice with a
-single-process tracer, JSONL output, x86-64 syscall decoding, successful
-FD/VMA event reduction, `/proc` bootstrap, and unit-tested state models.
+Under the hood it is a C++20 Linux x86-64 system call tracer. It uses `ptrace`
+to collect system call entry/exit events and pure state reducers to model file
+descriptor and virtual memory mapping lifecycles. An oracle checks the memory
+map rebuilt from system calls against `/proc/<pid>/maps`.
+
+## Status
+
+Works today, for a single process: memory regions, global variables, stack
+frames (function names), system call events, and a local viewer.
+
+Planned, in this order (details in [docs/ROADMAP.md](docs/ROADMAP.md)):
+local variables, `fork` parent/child comparison, thread comparison with shared
+regions, and changes over time.
 
 ## Quick start
 
