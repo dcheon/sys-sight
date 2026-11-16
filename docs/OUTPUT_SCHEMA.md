@@ -89,7 +89,10 @@ Emitted when the traced program calls `SYSSIGHT_SNAPSHOT()`.
 | `executable.sections` | Loaded sections with their address ranges. This is how `.data` and `.bss` are told apart. |
 | `executable.symbols` | Data objects from the symbol table, including toolchain-generated ones. `value` is present for objects of 1, 2, 4 or 8 bytes, as a hex string of the little-endian value. The list is empty for stripped programs. |
 | `stack.frames` | Stack frames from the innermost (the function that called the marker, index 0) outward. `start` to `end` is the frame's address range, `function` is `null` when unknown. |
+| `stack.frames[].locals` | Parameters and local variables in scope in that frame, read from DWARF debug information (`-g`); omitted without it. Each has `name`, `role` (`parameter` or `local`), `type` (as written in the C source), `address`, `size`, `bytes` (raw memory as hex), and `value`. Variables over 4096 bytes have `truncated: true` and no value; unreadable ones have `unreadable: true`. |
 | `stack.end` | Why the walk stopped (see below). |
+
+A `value` is `{"kind": ...}` with `kind` one of `int`, `bool`, `char` (also `text`), `float`, `pointer` (`value` is a hex address, `target` the pointed-to type), `enum` (also `name`), `struct` and `union` (`fields`, each with `name`, `offset`, `type`, `value`), `array` (`count`, `element_type`, `elements`; character arrays also have `text`), or `unknown`. Numbers are decimal strings, because JSON numbers lose precision above 2^53. Bit-fields add `bits`.
 | `oracle` | A check of the memory map that `sys-sight` rebuilt from system calls against `/proc/<pid>/maps` (see below). |
 
 Region `kind`:
@@ -139,6 +142,7 @@ state at program start comes from `/proc`.
 | `pie` | The program is position-independent; sections and symbols are omitted. |
 | `stack_walk` | No frames, or a broken frame pointer chain. |
 | `no_frame_pointer` | A function was built without a frame pointer. |
+| `no_debug_info` | The program has no DWARF information; local variables are omitted. |
 | `oracle_mismatch` | The memory map rebuilt from system calls differs from `/proc`; see `snapshot.oracle`. |
 
 Diagnostics for a snapshot appear before its `snapshot` line.
@@ -170,5 +174,5 @@ process exit code.
 
 - A `trigger` of `breakpoint` with a file and line.
 - Several snapshots per run.
-- Source file and line for each stack frame, and local variable names.
+- Source file and line for each stack frame.
 - Position-independent executables.

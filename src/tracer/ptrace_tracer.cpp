@@ -1,5 +1,6 @@
 #include "tracer/ptrace_tracer.h"
 
+#include "dwarf/dwarf_reader.h"
 #include "elf/elf_reader.h"
 #include "output/jsonl_writer.h"
 #include "state/memory_oracle.h"
@@ -21,6 +22,7 @@
 #include <exception>
 #include <fcntl.h>
 #include <iostream>
+#include <optional>
 #include <sys/ptrace.h>
 #include <sys/types.h>
 #include <sys/user.h>
@@ -113,6 +115,28 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
                   "and call the marker from the executable\"}}\n";
     }
 
+    // Local variables need debug information and a non-PIE executable.
+    std::vector<std::vector<FrameVariable>> locals;
+    if (!elf.pie && !walk.frames.empty()) {
+        if (const auto dwarf = DwarfReader::open(executable_path)) {
+            for (const auto& frame : walk.frames) {
+                std::vector<FrameVariable> variables;
+                for (auto& variable : dwarf->locals_at(frame.pc, frame.frame_pointer)) {
+                    std::optional<std::vector<std::uint8_t>> bytes;
+                    if (variable.type->size <= kMaxVariableBytes) {
+                        bytes = read_tracee_bytes(pid, variable.address, variable.type->size);
+                    }
+                    variables.push_back({std::move(variable), std::move(bytes)});
+                }
+                locals.push_back(std::move(variables));
+            }
+        } else {
+            output << "{\"diagnostic\":{\"level\":\"warning\",\"code\":\"no_debug_info\","
+                      "\"message\":\"no DWARF debug information: local variables omitted; "
+                      "build with -g\"}}\n";
+        }
+    }
+
     output << "{\"snapshot\":{\"trigger\":\"marker\",\"sequence\":" << sequence
            << ",\"registers\":{\"rip\":\"" << hex_address(registers.rip) << "\",\"rsp\":\""
            << hex_address(registers.rsp) << "\",\"rbp\":\"" << hex_address(registers.rbp)
@@ -121,7 +145,7 @@ void write_snapshot(std::ostream& output, pid_t pid, std::int64_t sequence,
     output << ",\"executable\":";
     write_executable_json(output, executable_path, elf);
     output << ",\"stack\":";
-    write_stack_json(output, walk);
+    write_stack_json(output, walk, locals);
     output << ",\"oracle\":";
     write_oracle_json(output, oracle, maps_read, state.memory_map().regions().size(), maps.size());
     output << "}}\n" << std::flush;

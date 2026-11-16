@@ -15,11 +15,12 @@ map rebuilt from system calls against `/proc/<pid>/maps`.
 ## Status
 
 Works today, for a single process: memory regions, global variables, stack
-frames (function names), system call events, and a local viewer.
+frames with their local variables (in the JSONL output; the viewer does not
+show them yet), system call events, and a local viewer.
 
 Planned, in this order (details in [docs/ROADMAP.md](docs/ROADMAP.md)):
-local variables, `fork` parent/child comparison, thread comparison with shared
-regions, and changes over time.
+`fork` parent/child comparison, thread comparison with shared regions, and
+changes over time.
 
 ## Quick start
 
@@ -31,7 +32,8 @@ ctest --test-dir build --output-on-failure
 ```
 
 The tracer currently targets Linux x86-64 and requires CMake 3.20 or newer
-with a C++20 compiler.
+with a C++20 compiler and libdw (`libdw-dev` on Debian and Ubuntu), which
+reads local variables from debug information.
 
 ## Run with Docker
 

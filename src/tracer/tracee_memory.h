@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 namespace sys_sight {
 
@@ -14,5 +15,10 @@ namespace sys_sight {
 // address cannot be read.
 [[nodiscard]] std::optional<std::uint64_t> read_tracee_integer(pid_t pid, Address address,
                                                                std::uint64_t size);
+
+// Reads `size` bytes; empty if the range cannot be read completely.
+[[nodiscard]] std::optional<std::vector<std::uint8_t>> read_tracee_bytes(pid_t pid,
+                                                                         Address address,
+                                                                         std::uint64_t size);
 
 }  // namespace sys_sight

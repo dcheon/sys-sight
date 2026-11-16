@@ -20,6 +20,8 @@ jobs:
             sanitizer_options: "-DSYS_SIGHT_ENABLE_undefined=ON"
     steps:
       - uses: actions/checkout@v4
+      - name: Install libdw
+        run: sudo apt-get update && sudo apt-get install -y libdw-dev
       - uses: actions/cache@v4
         with:
           path: build/_deps

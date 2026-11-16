@@ -29,8 +29,9 @@ The features below are ordered. Each one needs the ones before it.
 5. **Change over time.** Several snapshots per run and the difference between
    them, to follow a variable as the program runs.
 
-Not needed for the goals above, so later: the full file descriptor system call
-set, `execve` state reset, Perfetto export, benchmarks, seccomp filtering, and
+Not needed for the goals above, so later: local variables in registers and
+location lists (optimized builds, needs CFI to recover registers), the full
+file descriptor system call set, `execve` state reset, Perfetto export, benchmarks, seccomp filtering, and
 ThreadSanitizer.
 
 ## Architecture
@@ -108,7 +109,8 @@ events.
 - [x] Walk stack frames through frame pointers
 - [x] `sys-sight run` to compile and trace a C source in one step
 - [x] Local viewer for the JSONL output
-- [ ] Local variables of each stack frame, from DWARF debug information
+- [x] Local variables of each stack frame, from DWARF debug information
+  (libdw; structs, unions, arrays, enums, bit-fields; viewer display pending)
 - [ ] Several snapshots per run
 - [ ] Source file and line for each stack frame
 - [ ] Position-independent executables
