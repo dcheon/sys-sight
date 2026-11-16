@@ -26,6 +26,7 @@ struct StackFrame {
     Address frame_pointer;
     Address saved_frame_pointer;
     Address return_address;
+    Address pc = 0;  // an address inside this function: where it is executing (or returns to)
 };
 
 enum class StackWalkEnd {

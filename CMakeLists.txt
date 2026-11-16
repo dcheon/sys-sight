@@ -19,6 +19,8 @@ if(SYS_SIGHT_ENABLE_undefined)
 endif()
 
 add_library(sys_sight_core
+    src/dwarf/dwarf_reader.cpp
+    src/output/value_json.cpp
     src/elf/elf_reader.cpp
     src/tracer/tracee_memory.cpp
     src/state/fd_table.cpp
@@ -34,6 +36,15 @@ add_library(sys_sight_core
     src/output/jsonl_writer.cpp
 )
 target_include_directories(sys_sight_core PUBLIC src include)
+
+# libdw (elfutils) reads the DWARF debug information for local variables.
+find_path(LIBDW_INCLUDE_DIR elfutils/libdw.h)
+find_library(LIBDW_LIBRARY dw)
+if(NOT LIBDW_INCLUDE_DIR OR NOT LIBDW_LIBRARY)
+    message(FATAL_ERROR "libdw not found: install libdw-dev (Debian/Ubuntu) or elfutils-devel")
+endif()
+target_include_directories(sys_sight_core PUBLIC ${LIBDW_INCLUDE_DIR})
+target_link_libraries(sys_sight_core PUBLIC ${LIBDW_LIBRARY})
 target_compile_options(sys_sight_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 # The marker header is embedded so `sys-sight run` needs no installed files.
@@ -109,6 +120,27 @@ if(SYS_SIGHT_BUILD_TESTS)
             -DTRACER=$<TARGET_FILE:sys-sight>
             -P ${CMAKE_SOURCE_DIR}/tests/example/check_frames.cmake)
     set_tests_properties(nested_calls_frames PROPERTIES
+        ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
+
+    # Local variables: structs, arrays, enums, unions, bit-fields, nested blocks.
+    add_executable(locals_example examples/locals/main.c)
+    target_include_directories(locals_example PRIVATE include)
+    set_target_properties(locals_example PROPERTIES C_STANDARD 11 C_EXTENSIONS ON)
+    target_compile_options(locals_example PRIVATE
+        -O0 -g -fno-pie -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Werror)
+    target_link_options(locals_example PRIVATE -no-pie)
+    add_test(NAME locals_values
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=$<TARGET_FILE:locals_example>
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_locals.cmake)
+    add_test(NAME run_source_locals
+        COMMAND ${CMAKE_COMMAND}
+            -DEXE=${CMAKE_SOURCE_DIR}/examples/locals/main.c
+            -DTRACER=$<TARGET_FILE:sys-sight>
+            -DTRACER_ARGS=run
+            -P ${CMAKE_SOURCE_DIR}/tests/example/check_locals.cmake)
+    set_tests_properties(locals_values run_source_locals PROPERTIES
         ENVIRONMENT "ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0")
 
     # `sys-sight run`: compile with the required flags, trace, clean up.

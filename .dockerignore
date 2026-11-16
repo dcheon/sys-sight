@@ -3,3 +3,4 @@
 .gitignore
 /build
 *.jsonl
+coverage-html/

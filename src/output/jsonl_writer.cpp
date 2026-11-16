@@ -95,7 +95,8 @@ void write_oracle_json(std::ostream& output, const OracleResult& oracle, bool co
     output << "]}";
 }
 
-void write_stack_json(std::ostream& output, const StackWalk& walk) {
+void write_stack_json(std::ostream& output, const StackWalk& walk,
+                      const std::vector<std::vector<FrameVariable>>& locals) {
     output << "{\"end\":\"" << to_string(walk.end) << "\",\"frames\":[";
     for (std::size_t index = 0; index < walk.frames.size(); ++index) {
         const auto& frame = walk.frames[index];
@@ -109,7 +110,12 @@ void write_stack_json(std::ostream& output, const StackWalk& walk) {
                << hex_address(frame.end) << "\",\"frame_pointer\":\""
                << hex_address(frame.frame_pointer) << "\",\"saved_frame_pointer\":\""
                << hex_address(frame.saved_frame_pointer) << "\",\"return_address\":\""
-               << hex_address(frame.return_address) << "\"}";
+               << hex_address(frame.return_address) << '"';
+        if (index < locals.size()) {
+            output << ",\"locals\":";
+            write_variables_json(output, locals[index]);
+        }
+        output << '}';
     }
     output << "]}";
 }

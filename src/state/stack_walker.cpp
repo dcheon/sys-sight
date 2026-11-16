@@ -84,7 +84,7 @@ StackWalk walk_stack(Address rsp, Address rbp, const MemoryReader& read,
         }
 
         walk.frames.push_back({owner == nullptr ? std::string{} : owner->name, bottom, top,
-                               frame_pointer, *saved, *caller_return});
+                               frame_pointer, *saved, *caller_return, *return_into});
         if (!in_text(text, *caller_return)) {
             walk.end = StackWalkEnd::LeftExecutable;
             return walk;

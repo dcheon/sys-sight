@@ -3,6 +3,7 @@
 #include "elf/elf_reader.h"
 #include "state/memory_oracle.h"
 #include "state/region_classifier.h"
+#include "output/value_json.h"
 #include "state/stack_walker.h"
 #include "tracer/ptrace_tracer.h"
 
@@ -23,7 +24,9 @@ void write_jsonl(std::ostream& output, const SyscallEvent& event);
 [[nodiscard]] std::string hex_address(std::uint64_t value);
 void write_json_string(std::ostream& output, std::string_view value);
 void write_regions_json(std::ostream& output, const std::vector<ClassifiedRegion>& regions);
-void write_stack_json(std::ostream& output, const StackWalk& walk);
+// `locals[i]` holds the variables of `walk.frames[i]`; it may be shorter than the frames.
+void write_stack_json(std::ostream& output, const StackWalk& walk,
+                      const std::vector<std::vector<FrameVariable>>& locals = {});
 // `compared` is false when /proc/<pid>/maps could not be read, so there is no verdict.
 void write_oracle_json(std::ostream& output, const OracleResult& oracle, bool compared,
                        std::size_t reducer_regions, std::size_t proc_regions);
