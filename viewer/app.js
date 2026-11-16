@@ -17,6 +17,16 @@
     return parent;
   }
 
+  // Constant high bytes dimmed so the digits that change read first.
+  function hexEl(value) {
+    const s = value.toString(16).padStart(12, '0');
+    const zeros = /^0*/.exec(s)[0].length;
+    return add(el('span'), el('span', 'dim', '0x' + s.slice(0, zeros)), document.createTextNode(s.slice(zeros)));
+  }
+
+  // Height grows with log2(size): 4 KiB is 64px, 1 MiB 160px, capped at 240px. Linear is useless over a 47-bit span.
+  const rowHeight = (bytes) => Math.min(240, Math.max(64, 64 + 12 * (Math.log2(Number(bytes)) - 12)));
+
   function banner(kind, text) { return el('div', 'banner ' + kind, text); }
 
   function renderStatus(model) {
@@ -59,9 +69,10 @@
   function regionRow(row) {
     const node = el('div', 'row');
     node.dataset.kind = row.kind;
+    node.style.minHeight = rowHeight(row.end - row.start) + 'px';
     const left = el('div');
-    add(left, el('div', 'kind', row.kind), el('div', 'addr', M.hex(row.start)),
-        el('div', 'addr', 'to ' + M.hex(row.end)));
+    add(left, el('div', 'kind', row.kind), add(el('div', 'addr'), hexEl(row.start)),
+        add(el('div', 'addr'), hexEl(row.end)));
 
     const body = el('div');
     const name = row.name || (row.kind === 'mmap' ? 'anonymous mapping' : row.kind);
@@ -91,7 +102,7 @@
     if (row.frames.length) {
       const frames = el('div', 'frames');
       row.frames.forEach((frame, index) => {
-        const label = (index === 0 ? 'innermost · ' : '') + (frame.function || 'unknown function');
+        const label = (index === 0 ? 'Innermost · ' : '') + (frame.function || 'unknown function');
         const box = el('div', 'frame');
         add(box, el('strong', null, label),
             el('div', 'mono muted', M.hex(frame.startBig) + ' – ' + M.hex(frame.endBig) + ' · ' +
@@ -109,7 +120,7 @@
     model.rows.forEach((row, index) => {
       const previous = model.rows[index - 1];
       if (previous && row.start > previous.end) {
-        map.appendChild(el('div', 'gap', '⋮ unmapped gap of ' + M.sizeText(row.start - previous.end)));
+        map.appendChild(el('div', 'gap', 'Unmapped, ' + M.sizeText(row.start - previous.end)));
       }
       map.appendChild(regionRow(row));
     });
@@ -146,8 +157,9 @@
 
     add(result, el('h2', null, 'Snapshot'), summary(model));
     add(result, el('h2', null, 'Address space'),
-        add(el('div', 'axis'), el('span', null, 'low addresses (top)'),
-            el('span', null, 'high addresses (bottom)')),
+        add(el('div', 'axis'), el('span', null, 'Low addresses'),
+            el('span', null, 'Row height grows with size (log scale)'),
+            el('span', null, 'High addresses')),
         renderMap(model));
 
     add(result, el('h2', null, 'Variables'));
